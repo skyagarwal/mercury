@@ -1,0 +1,8 @@
+{
+    email admin@mangwale.com
+}
+
+exotel.mangwale.ai {
+    # Nerve system runs on port 7100
+    reverse_proxy localhost:7100
+}

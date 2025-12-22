@@ -1,0 +1,16 @@
+      });
+
+      this.logger.error(`TTS synthesis failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  // ==================== Analytics ====================
+
+  async getUsageStats(characterId?: string, days = 7) {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+
+    const where: any = { createdAt: { gte: since } };
+    if (characterId) {
+      where.characterId = characterId;

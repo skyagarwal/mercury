@@ -1,0 +1,98 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Exotel Proxy Service",
+    "version": "0.1.0",
+    "description": "API to proxy Exotel operations (SMS, calls) and receive webhooks."
+  },
+  "servers": [
+    { "url": "https://exotel.mangwale.ai" }
+  ],
+  "paths": {
+    "/health": {
+      "get": {"summary": "Health check","responses": {"200": {"description": "OK"}}}
+    },
+    "/exotel/auth/check": {
+      "get": {
+        "summary": "Validate Exotel credentials (non-billable)",
+        "responses": {
+          "200": {"description": "OK", "content": {"application/json": {}}},
+          "502": {"description": "Upstream error"}
+        }
+      }
+    },
+    "/exotel/sms": {
+      "post": {
+        "summary": "Send SMS via Exotel",
+        "security": [{ "uiAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {"type": "string", "example": "+911234567890"},
+                  "message": {"type": "string"}
+                },
+                "required": ["to", "message"]
+              }
+            }
+          }
+        },
+        "responses": {"200": {"description": "Queued/Success"}, "401": {"description": "Unauthorized"}}
+      }
+    },
+    "/exotel/call/connect": {
+      "post": {
+        "summary": "Initiate call connect via Exotel",
+        "security": [{ "uiAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "from": {"type": "string", "example": "+911234567890"},
+                  "to": {"type": "string", "example": "+919876543210"}
+                },
+                "required": ["from", "to"]
+              }
+            }
+          }
+        },
+        "responses": {"200": {"description": "Queued/Success"}, "401": {"description": "Unauthorized"}}
+      }
+    },
+    "/exotel/webhooks/call-status": {
+      "post": {
+        "summary": "Receive Exotel call status webhook",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {"schema": {"type": "object"}},
+            "application/json": {"schema": {"type": "object"}}
+          }
+        },
+        "responses": {"202": {"description": "Accepted"}}
+      }
+    },
+    "/exotel/webhooks/recent": {
+      "get": {"summary": "Recent webhook events","responses": {"200": {"description": "OK"}}}
+    },
+    "/exotel/webhooks/events/stream": {
+      "get": {"summary": "SSE stream of webhook events","responses": {"200": {"description": "OK"}}}
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "uiAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-ui-auth",
+        "description": "UI password required for protected actions."
+      }
+    }
+  }
+}

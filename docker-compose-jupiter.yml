@@ -1,0 +1,199 @@
+version: '3.8'
+
+#############################################################################
+# MANGWALE VOICE AGENT - Jupiter Connected Stack
+#
+# This stack provides voice enhancement for Mangwale AI.
+# It connects to Jupiter (192.168.0.156) for:
+#   - Backend API (conversation logic, flows)
+#   - vLLM (LLM inference)
+#   - NLU (intent classification)
+#
+# Mercury (this server - 192.168.0.151) provides:
+#   - ASR (Whisper speech-to-text)
+#   - TTS (XTTS for Hindi, Orpheus for English)
+#   - Voice Agent (orchestration, enhancement, turn-taking)
+#############################################################################
+
+services:
+  #---------------------------------------------------------------------------
+  # ASR SERVICE (Already running, use existing)
+  # Faster Whisper with Large-v3 model
+  # Port: 7000
+  #---------------------------------------------------------------------------
+  asr:
+    image: fedirz/faster-whisper-server:latest-cuda
+    container_name: mangwale-asr
+    restart: unless-stopped
+    ports:
+      - "7000:8000"
+    environment:
+      - WHISPER__MODEL=Systran/faster-whisper-large-v3
+      - WHISPER__DEVICE=cuda
+      - WHISPER__COMPUTE_TYPE=float16
+      - WHISPER__LANGUAGE=auto
+      - WHISPER__INITIAL_PROMPT=This is a conversation in Hindi and English (Hinglish). Common words: Mangwale, parcel, delivery, order, karo, chahiye, bhejo.
+    volumes:
+      - whisper-cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  #---------------------------------------------------------------------------
+  # TTS SERVICE - XTTS (Hindi optimized)
+  # Better for Hindi/Indic languages
+  # Port: 8010
+  #---------------------------------------------------------------------------
+  tts-xtts:
+    image: ghcr.io/coqui-ai/xtts-streaming-server:latest
+    container_name: mangwale-tts-xtts
+    restart: unless-stopped
+    ports:
+      - "8010:80"
+    environment:
+      - COQUI_TOS_AGREED=1
+    volumes:
+      - xtts-models:/root/.local/share/tts
+      - ./models/xtts:/app/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  #---------------------------------------------------------------------------
+  # TTS SERVICE - Orpheus (English optimized with emotions)
+  # Better for English and emotional expression
+  # Port: 8020
+  #---------------------------------------------------------------------------
+  tts-orpheus:
+    build:
+      context: ./orpheus-tts
+      dockerfile: Dockerfile
+    container_name: mangwale-tts-orpheus
+    restart: unless-stopped
+    ports:
+      - "8020:8020"
+    environment:
+      - ORPHEUS_MODEL=canopylabs/orpheus-tts-0.1-finetune-prod
+      - ORPHEUS_DEVICE=cuda
+      - ORPHEUS_MAX_MODEL_LEN=2048
+      - DEFAULT_VOICE=tara
+    volumes:
+      - orpheus-cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  #---------------------------------------------------------------------------
+  # VOICE AGENT ORCHESTRATOR
+  # Connects to Jupiter for conversation logic
+  # Adds voice enhancement (fillers, emotion, prosody)
+  # Port: 8090
+  #---------------------------------------------------------------------------
+  voice-agent:
+    build:
+      context: ./voice-agent
+      dockerfile: Dockerfile.jupiter
+    container_name: mangwale-voice-agent
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      # Jupiter connection (NO DUPLICATION - reuses Jupiter's brain)
+      - JUPITER_HOST=192.168.0.156
+      - JUPITER_BACKEND_URL=http://192.168.0.156:3200
+      - JUPITER_VLLM_URL=http://192.168.0.156:8002
+      - JUPITER_NLU_URL=http://192.168.0.156:7010
+      # Local TTS services
+      - TTS_XTTS_URL=http://tts-xtts:80
+      - TTS_ORPHEUS_URL=http://tts-orpheus:8020
+      - ASR_URL=http://asr:8000
+      # Voice settings
+      - ENABLE_FILLERS=true
+      - ENABLE_EMOTION=true
+      - FILLER_PROBABILITY=0.25
+    depends_on:
+      - asr
+      - tts-xtts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  #---------------------------------------------------------------------------
+  # VOICE GATEWAY
+  # WebSocket server for real-time voice streaming
+  # Handles: Audio capture → ASR → Voice Agent → TTS → Audio playback
+  # Port: 8080
+  #---------------------------------------------------------------------------
+  voice-gateway:
+    build:
+      context: ./voice-gateway
+      dockerfile: Dockerfile
+    container_name: mangwale-voice-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ASR_URL=http://asr:8000
+      - VOICE_AGENT_URL=http://voice-agent:8090
+      - TTS_URL=http://tts-xtts:80
+      - NODE_ENV=production
+    depends_on:
+      - voice-agent
+      - asr
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  #---------------------------------------------------------------------------
+  # WEB UI DEMO
+  # Simple demo interface for voice agent testing
+  # Port: 3000
+  #---------------------------------------------------------------------------
+  web-ui:
+    image: nginx:alpine
+    container_name: mangwale-voice-ui
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      - ./web-ui:/usr/share/nginx/html:ro
+
+volumes:
+  whisper-cache:
+  xtts-models:
+  orpheus-cache:
+
+networks:
+  default:
+    name: mangwale-voice

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mangwale Voice Demo</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e4e4e4;
+            min-height: 100vh;
+        }
+        h1 {
+            text-align: center;
+            color: #00d4aa;
+            margin-bottom: 30px;
+        }
+        .card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .card h2 {
+            margin-top: 0;
+            color: #00d4aa;
+            font-size: 1.2em;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-size: 0.9em;
+        }
+        textarea, select, input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            margin-bottom: 15px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 16px;
+        }
+        textarea { min-height: 100px; resize: vertical; }
+        select { cursor: pointer; }
+        button {
+            background: linear-gradient(135deg, #00d4aa, #00a885);
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,212,170,0.3);
+        }
+        button:disabled {
+            background: #444;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .row { display: flex; gap: 15px; }
+        .row > * { flex: 1; }
+        audio {
+            width: 100%;
+            margin-top: 15px;
+            border-radius: 8px;
+        }
+        .status {
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        .status.success { background: rgba(0,212,170,0.2); color: #00d4aa; }
+        .status.error { background: rgba(255,82,82,0.2); color: #ff5252; }
+        .status.info { background: rgba(100,150,255,0.2); color: #6496ff; }
+        .providers {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .provider {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+        }
+        .provider.available { background: rgba(0,212,170,0.2); color: #00d4aa; }
+        .provider.unavailable { background: rgba(255,82,82,0.1); color: #666; }
+        .latency { font-size: 0.9em; color: #888; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <h1>🎙️ Mangwale Voice Demo</h1>
+    
+    <div class="card">
+        <h2>🔌 Provider Status</h2>
+        <div id="providers">Loading...</div>
+    </div>
+    
+    <div class="card">
+        <h2>🗣️ Text-to-Speech</h2>
+        <label>Text to Speak</label>
+        <textarea id="ttsText" placeholder="Enter text... / टेक्स्ट दर्ज करें...">नमस्ते, मैं मंगवाले हूं। आज मैं आपकी कैसे मदद कर सकता हूं?</textarea>
+        
+        <div class="row">
+            <div>
+                <label>Provider</label>
+                <select id="ttsProvider">
+                    <option value="local">Local (XTTS - Free)</option>
+                    <option value="elevenlabs" selected>ElevenLabs (Fast)</option>
+                    <option value="deepgram">Deepgram (Cloud)</option>
+                </select>
+            </div>
+            <div>
+                <label>Language</label>
+                <select id="ttsLanguage">
+                    <option value="hi" selected>Hindi</option>
+                    <option value="en">English</option>
+                    <option value="mr">Marathi</option>
+                </select>
+            </div>
+        </div>
+        
+        <button id="speakBtn" onclick="speak()">🔊 Generate Speech</button>
+        
+        <audio id="audioPlayer" controls style="display:none;"></audio>
+        <div id="ttsStatus"></div>
+    </div>
+    
+    <div class="card">
+        <h2>🎤 Speech-to-Text</h2>
+        <label>Upload Audio File or Record</label>
+        <input type="file" id="audioFile" accept="audio/*">
+        
+        <div class="row">
+            <div>
+                <label>Provider</label>
+                <select id="asrProvider">
+                    <option value="local" selected>Local (Whisper - Free)</option>
+                    <option value="deepgram">Deepgram (Fast)</option>
+                </select>
+            </div>
+            <div>
+                <label>Language</label>
+                <select id="asrLanguage">
+                    <option value="hi" selected>Hindi</option>
+                    <option value="en">English</option>
+                    <option value="mr">Marathi</option>
+                </select>
+            </div>
+        </div>
+        
+        <button id="transcribeBtn" onclick="transcribe()">📝 Transcribe</button>
+        
+        <div id="transcription" style="display:none; margin-top:15px; padding:15px; background:rgba(0,0,0,0.3); border-radius:8px;"></div>
+        <div id="asrStatus"></div>
+    </div>
+
+    <script>
+        const API_URL = window.location.hostname === 'localhost' 
+            ? 'http://localhost:7101' 
+            : `http://${window.location.hostname}:7101`;
+        
+        // Load provider status
+        async function loadProviders() {
+            try {
+                const res = await fetch(`${API_URL}/api/providers/health`);
+                const data = await res.json();
+                
+                let html = '<div style="margin-bottom:10px;"><strong>ASR:</strong></div><div class="providers">';
+                for (const [provider, available] of Object.entries(data.asr)) {
+                    html += `<span class="provider ${available ? 'available' : 'unavailable'}">${available ? '✅' : '❌'} ${provider}</span>`;
+                }
+                html += '</div><div style="margin-bottom:10px;"><strong>TTS:</strong></div><div class="providers">';
+                for (const [provider, available] of Object.entries(data.tts)) {
+                    html += `<span class="provider ${available ? 'available' : 'unavailable'}">${available ? '✅' : '❌'} ${provider}</span>`;
+                }
+                html += '</div>';
+                
+                document.getElementById('providers').innerHTML = html;
+            } catch (e) {
+                document.getElementById('providers').innerHTML = '<span class="provider unavailable">❌ Cannot connect to gateway</span>';
+            }
+        }
+        
+        // TTS
+        async function speak() {
+            const btn = document.getElementById('speakBtn');
+            const status = document.getElementById('ttsStatus');
+            const audio = document.getElementById('audioPlayer');
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ Generating...';
+            status.className = 'status info';
+            status.textContent = 'Generating speech...';
+            
+            const startTime = Date.now();
+            
+            try {
+                const res = await fetch(`${API_URL}/api/speak`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        text: document.getElementById('ttsText').value,
+                        language: document.getElementById('ttsLanguage').value,
+                        provider: document.getElementById('ttsProvider').value
+                    })
+                });
+                
+                if (!res.ok) throw new Error(await res.text());
+                
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                audio.src = url;
+                audio.style.display = 'block';
+                audio.play();
+                
+                const latency = ((Date.now() - startTime) / 1000).toFixed(2);
+                status.className = 'status success';
+                status.innerHTML = `✅ Generated! <span class="latency">Latency: ${latency}s | Size: ${(blob.size/1024).toFixed(1)}KB</span>`;
+            } catch (e) {
+                status.className = 'status error';
+                status.textContent = `❌ Error: ${e.message}`;
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '🔊 Generate Speech';
+        }
+        
+        // ASR
+        async function transcribe() {
+            const btn = document.getElementById('transcribeBtn');
+            const status = document.getElementById('asrStatus');
+            const result = document.getElementById('transcription');
+            const fileInput = document.getElementById('audioFile');
+            
+            if (!fileInput.files.length) {
+                status.className = 'status error';
+                status.textContent = '❌ Please select an audio file';
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ Transcribing...';
+            status.className = 'status info';
+            status.textContent = 'Processing audio...';
+            
+            const startTime = Date.now();
+            
+            try {
+                const file = fileInput.files[0];
+                const reader = new FileReader();
+                
+                reader.onload = async function() {
+                    const base64 = reader.result.split(',')[1];
+                    
+                    const res = await fetch(`${API_URL}/api/transcribe`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            audio: base64,
+                            language: document.getElementById('asrLanguage').value,
+                            provider: document.getElementById('asrProvider').value
+                        })
+                    });
+                    
+                    if (!res.ok) throw new Error(await res.text());
+                    
+                    const data = await res.json();
+                    const latency = ((Date.now() - startTime) / 1000).toFixed(2);
+                    
+                    result.style.display = 'block';
+                    result.innerHTML = `<strong>Transcription:</strong><br>${data.text || 'No text detected'}<br><br><small>Language: ${data.language} | Confidence: ${(data.confidence * 100).toFixed(1)}% | Provider: ${data.provider}</small>`;
+                    
+                    status.className = 'status success';
+                    status.innerHTML = `✅ Transcribed! <span class="latency">Latency: ${latency}s</span>`;
+                    
+                    btn.disabled = false;
+                    btn.textContent = '📝 Transcribe';
+                };
+                
+                reader.readAsDataURL(file);
+            } catch (e) {
+                status.className = 'status error';
+                status.textContent = `❌ Error: ${e.message}`;
+                btn.disabled = false;
+                btn.textContent = '📝 Transcribe';
+            }
+        }
+        
+        // Init
+        loadProviders();
+        setInterval(loadProviders, 30000);
+    </script>
+</body>
+</html>

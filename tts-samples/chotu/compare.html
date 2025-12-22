@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTS Quality Comparison - Mangwale Chotu</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00d4ff; text-align: center; }
+        h2 { color: #ff6b6b; border-bottom: 2px solid #ff6b6b; padding-bottom: 10px; }
+        .section { margin: 30px 0; }
+        .sample {
+            background: #16213e;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 15px 0;
+            border-left: 4px solid #00d4ff;
+        }
+        .sample h3 { color: #00d4ff; margin: 0 0 10px 0; }
+        .sample p { color: #aaa; margin: 5px 0; }
+        .sample audio { width: 100%; margin: 10px 0; }
+        .text-content {
+            background: #0f3460;
+            padding: 15px;
+            border-radius: 5px;
+            font-style: italic;
+            margin: 10px 0;
+        }
+        .metrics {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .metric {
+            background: #0f3460;
+            padding: 10px 15px;
+            border-radius: 5px;
+        }
+        .metric-label { font-size: 12px; color: #888; }
+        .metric-value { font-size: 18px; font-weight: bold; color: #00d4ff; }
+        .winner { border-color: #4ecdc4; background: #1a3a3a; }
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .comparison-table th, .comparison-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        .comparison-table th { background: #0f3460; color: #00d4ff; }
+        .comparison-table tr:hover { background: #16213e; }
+    </style>
+</head>
+<body>
+    <h1>🎤 TTS Quality Comparison - Mangwale Chotu</h1>
+    
+    <div class="section">
+        <h2>📝 Test Text</h2>
+        <div class="text-content">
+            <strong>Hindi:</strong> नमस्ते, मैं मंगवाले का AI बोट हूं छोटू। मैं आपके लिए क्या कर सकता हूं?<br><br>
+            <strong>English:</strong> Hello, I am Chotu, the Mangwale AI bot. How can I help you today?<br><br>
+            <strong>Marathi:</strong> नमस्कार, मी मंगवालेचा AI बोट छोटू आहे। मी तुमच्यासाठी काय करू शकतो?
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🏆 Hindi TTS Samples</h2>
+        
+        <div class="sample winner">
+            <h3>⭐ ChatterBox Multilingual (Recommended)</h3>
+            <p>500M params | Zero-shot voice cloning | MIT License</p>
+            <audio controls src="chatterbox_hindi.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">4.68s</div></div>
+                <div class="metric"><div class="metric-label">Size</div><div class="metric-value">220KB</div></div>
+                <div class="metric"><div class="metric-label">VRAM</div><div class="metric-value">~4GB</div></div>
+            </div>
+        </div>
+        
+        <div class="sample">
+            <h3>ChatterBox (cfg_weight=0)</h3>
+            <p>Same model with cfg_weight=0 for no reference clip</p>
+            <audio controls src="chatterbox_hindi_cfg0.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">5.68s</div></div>
+            </div>
+        </div>
+
+        <div class="sample">
+            <h3>Indic Parler TTS</h3>
+            <p>0.9B params | 21 Indic languages | AI4Bharat</p>
+            <audio controls src="indic_parler_hindi.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">8.64s</div></div>
+                <div class="metric"><div class="metric-label">Size</div><div class="metric-value">415KB</div></div>
+            </div>
+        </div>
+
+        <div class="sample">
+            <h3>Indic Parler - Rohit (Improved)</h3>
+            <p>With HuggingFace recommended voice description</p>
+            <audio controls src="improved_hindi_rohit.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">9.58s</div></div>
+            </div>
+        </div>
+
+        <div class="sample">
+            <h3>Indic Parler - Divya (Improved)</h3>
+            <p>Female voice with HuggingFace recommended description</p>
+            <audio controls src="improved_hindi_divya.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">11.29s</div></div>
+            </div>
+        </div>
+
+        <div class="sample">
+            <h3>Kokoro TTS (Hindi)</h3>
+            <p>Multi-language TTS model</p>
+            <audio controls src="kokoro_hindi.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">13.25s</div></div>
+                <div class="metric"><div class="metric-label">Size</div><div class="metric-value">636KB</div></div>
+            </div>
+        </div>
+
+        <div class="sample">
+            <h3>ElevenLabs Hindi (Cloud API)</h3>
+            <p>Commercial cloud TTS for reference</p>
+            <audio controls src="elevenlabs_hindi.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">~4s</div></div>
+                <div class="metric"><div class="metric-label">Type</div><div class="metric-value">Cloud</div></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🇬🇧 English TTS Samples</h2>
+        
+        <div class="sample winner">
+            <h3>⭐ ChatterBox English</h3>
+            <audio controls src="chatterbox_english.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">4.60s</div></div>
+            </div>
+        </div>
+
+        <div class="sample">
+            <h3>Kokoro English</h3>
+            <audio controls src="kokoro_english.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">~4s</div></div>
+            </div>
+        </div>
+
+        <div class="sample">
+            <h3>ElevenLabs English (Cloud API)</h3>
+            <audio controls src="elevenlabs_english.wav"></audio>
+        </div>
+
+        <div class="sample">
+            <h3>Deepgram English (Cloud API)</h3>
+            <audio controls src="deepgram_english.wav"></audio>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>🇮🇳 Marathi TTS Samples</h2>
+        
+        <div class="sample winner">
+            <h3>⭐ ChatterBox Marathi</h3>
+            <audio controls src="chatterbox_marathi.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">5.16s</div></div>
+            </div>
+        </div>
+
+        <div class="sample">
+            <h3>Indic Parler Marathi</h3>
+            <audio controls src="indic_parler_marathi.wav"></audio>
+            <div class="metrics">
+                <div class="metric"><div class="metric-label">Duration</div><div class="metric-value">~10s</div></div>
+            </div>
+        </div>
+
+        <div class="sample">
+            <h3>Indic Parler - Sunita (Improved)</h3>
+            <audio controls src="improved_marathi_sunita.wav"></audio>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>📊 Comparison Summary</h2>
+        <table class="comparison-table">
+            <thead>
+                <tr>
+                    <th>Provider</th>
+                    <th>Hindi Quality</th>
+                    <th>Latency</th>
+                    <th>VRAM</th>
+                    <th>Cost</th>
+                    <th>Recommendation</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>ChatterBox Multilingual</td>
+                    <td>⭐⭐⭐⭐</td>
+                    <td>~3s</td>
+                    <td>~4GB</td>
+                    <td>Free (MIT)</td>
+                    <td>✅ Best for Hindi/Marathi</td>
+                </tr>
+                <tr>
+                    <td>Kokoro TTS</td>
+                    <td>⭐⭐⭐⭐⭐</td>
+                    <td>~1s</td>
+                    <td>~1GB</td>
+                    <td>Free</td>
+                    <td>✅ Best for English</td>
+                </tr>
+                <tr>
+                    <td>Indic Parler TTS</td>
+                    <td>⭐⭐</td>
+                    <td>~3-4s</td>
+                    <td>~2GB</td>
+                    <td>Free</td>
+                    <td>❌ Poor quality</td>
+                </tr>
+                <tr>
+                    <td>ElevenLabs</td>
+                    <td>⭐⭐⭐⭐</td>
+                    <td>~1s</td>
+                    <td>N/A</td>
+                    <td>$$$</td>
+                    <td>Cloud fallback</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section">
+        <h2>🚀 Recommended Architecture</h2>
+        <div class="text-content">
+            <strong>Hybrid TTS Stack:</strong><br><br>
+            1. <strong>English:</strong> Kokoro TTS (fast, high quality)<br>
+            2. <strong>Hindi/Marathi:</strong> ChatterBox Multilingual (best Indic quality)<br>
+            3. <strong>Fallback:</strong> ElevenLabs/Deepgram (cloud backup)<br><br>
+            This hybrid approach reduces latency for English (~1s) while maintaining quality for Indic languages (~3s).
+        </div>
+    </div>
+</body>
+</html>

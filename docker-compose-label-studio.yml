@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # ============================================
+  # LABEL STUDIO - Training Data Annotation
+  # ============================================
+  label-studio:
+    image: heartexlabs/label-studio:latest
+    container_name: mangwale-label-studio
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - /data/label-studio:/label-studio/data
+      - /data/label-studio/media:/label-studio/media
+    environment:
+      - LABEL_STUDIO_HOST=http://192.168.0.156:8080
+      - LABEL_STUDIO_USERNAME=admin@mangwale.ai
+      - LABEL_STUDIO_PASSWORD=mangwale_admin_2025
+      - LABEL_STUDIO_LOCAL_FILES_SERVING_ENABLED=true
+      - LABEL_STUDIO_LOCAL_FILES_DOCUMENT_ROOT=/label-studio/media
+      - POSTGRE_NAME=label_studio
+      - POSTGRE_USER=label_studio
+      - POSTGRE_PASSWORD=label_studio_password
+      - POSTGRE_HOST=postgres
+      - POSTGRE_PORT=5432
+    networks:
+      - mangwale-network
+    depends_on:
+      - postgres
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.label-studio.rule=Host(`label.mangwale.ai`)"
+      - "traefik.http.services.label-studio.loadbalancer.server.port=8080"
+
+  # ============================================
+  # POSTGRESQL - Shared Database
+  # ============================================
+  postgres:
+    image: postgres:15
+    container_name: mangwale-postgres-label
+    restart: unless-stopped
+    ports:
+      - "5433:5432"
+    volumes:
+      - /data/postgres-label:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=label_studio
+      - POSTGRES_USER=label_studio
+      - POSTGRES_PASSWORD=label_studio_password
+      - POSTGRES_MULTIPLE_DATABASES=label_studio
+    networks:
+      - mangwale-network
+
+networks:
+  mangwale-network:
+    external: true

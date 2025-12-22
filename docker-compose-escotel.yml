@@ -1,0 +1,96 @@
+# Escotel Stack - Standalone Deployment
+# SMS and Phone Calls via Exotel API
+#
+# Usage:
+#   docker compose -f docker-compose-escotel.yml up -d
+#
+# Services:
+#   - Exotel Service: http://localhost:3100 (API)
+#   - Exotel UI:      http://localhost:3101 (Dashboard)
+#   - RabbitMQ:       http://localhost:15672 (Management)
+
+version: '3.8'
+
+services:
+  # ==========================================================
+  # EXOTEL SERVICE - SMS & Calls API
+  # ==========================================================
+  exotel-service:
+    build:
+      context: ./escotel-stack/exotel-service
+      dockerfile: Dockerfile
+    container_name: mangwale-exotel-service
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - MQ_BROKER_URL=amqp://mangwale:mangwale@rabbitmq:5672
+      - CORS_ALLOWED_ORIGINS=http://localhost:3101,http://192.168.0.151:3101,http://192.168.0.151:8090,http://localhost:8090
+      - UI_PASSWORD=${EXOTEL_UI_PASSWORD:-mangwale123}
+      # Exotel credentials from Jupiter
+      - EXOTEL_API_KEY=${EXOTEL_API_KEY:-45b760cdb422e20a924c0a86b49b7383ceee5d7667cd2bbf}
+      - EXOTEL_API_TOKEN=${EXOTEL_API_TOKEN:-66a78a354493da387a7af6a30bbf723cf8fe508c7de0ccd5}
+      - EXOTEL_SID=${EXOTEL_SID:-sarvinsuppliesllp1}
+      - EXOTEL_SUBDOMAIN=${EXOTEL_SUBDOMAIN:-api}
+      - EXOTEL_REGION=${EXOTEL_REGION:-}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - escotel-net
+
+  # ==========================================================
+  # EXOTEL UI - Dashboard
+  # ==========================================================
+  exotel-ui:
+    build:
+      context: ./escotel-stack/exotel-ui
+      dockerfile: Dockerfile
+    container_name: mangwale-exotel-ui
+    restart: unless-stopped
+    ports:
+      - "3101:80"
+    depends_on:
+      - exotel-service
+    networks:
+      - escotel-net
+
+  # ==========================================================
+  # RABBITMQ - Message Queue for Events
+  # ==========================================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: mangwale-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=mangwale
+      - RABBITMQ_DEFAULT_PASS=mangwale
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - escotel-net
+
+volumes:
+  rabbitmq-data:
+
+networks:
+  escotel-net:
+    name: mangwale-escotel
+    driver: bridge

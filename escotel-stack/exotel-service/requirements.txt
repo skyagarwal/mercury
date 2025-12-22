@@ -1,0 +1,17 @@
+# Nerve System - Exotel IVR Orchestrator
+# ======================================
+
+# Core framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+
+# Async HTTP client
+httpx>=0.26.0
+
+# Audio processing (optional - for streaming)
+numpy>=1.24.0
+soundfile>=0.12.0
+
+# Monitoring
+prometheus-client>=0.19.0

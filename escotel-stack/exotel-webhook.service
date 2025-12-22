@@ -1,0 +1,30 @@
+[Unit]
+Description=Exotel Recording Webhook Handler
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/mangwale-voice/escotel-stack/exotel-service
+Environment="PYTHONUNBUFFERED=1"
+Environment="FASTER_WHISPER_URL=http://192.168.0.151:7001"
+Environment="MINIO_ENDPOINT=192.168.0.156:9002"
+Environment="MINIO_ACCESS_KEY=admin"
+Environment="MINIO_SECRET_KEY=minio_strong_password"
+Environment="POSTGRES_HOST=192.168.0.156"
+Environment="POSTGRES_PORT=5432"
+Environment="POSTGRES_DB=headless_mangwale"
+Environment="POSTGRES_USER=mangwale_config"
+Environment="POSTGRES_PASSWORD=config_secure_pass_2024"
+Environment="LABEL_STUDIO_URL=http://192.168.0.156:8080"
+Environment="LABEL_STUDIO_API_KEY="
+Environment="ASR_PROJECT_ID=1"
+ExecStart=/home/ubuntu/mangwale-voice/escotel-stack/exotel-service/venv/bin/python exotel_webhook_handler.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

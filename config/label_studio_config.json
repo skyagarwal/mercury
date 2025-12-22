@@ -1,0 +1,19 @@
+{
+  "label_studio": {
+    "url": "http://192.168.0.156:8080",
+    "api_key": "672bc1a61c7f4bd70efafc1b214d905cef3c08ab",
+    "projects": {
+      "asr_review": {
+        "id": 4,
+        "title": "ASR Transcription Review",
+        "url": "http://192.168.0.156:8080/projects/4"
+      },
+      "tts_quality": {
+        "id": 5,
+        "title": "TTS Quality Rating",
+        "url": "http://192.168.0.156:8080/projects/5"
+      }
+    }
+  },
+  "created_at": "2025-12-19T10:58:09+00:00"
+}

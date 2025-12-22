@@ -1,0 +1,59 @@
+# Prometheus Configuration for Mangwale Voice Stack
+# Scrapes metrics from all voice services
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Voice Gateway
+  - job_name: 'voice-gateway'
+    static_configs:
+      - targets: ['voice-gateway:8080']
+    metrics_path: /metrics
+
+  # ASR Service
+  - job_name: 'asr'
+    static_configs:
+      - targets: ['asr:7001']
+    metrics_path: /metrics
+
+  # TTS Service
+  - job_name: 'tts'
+    static_configs:
+      - targets: ['tts:7002']
+    metrics_path: /metrics
+
+  # Orchestrator
+  - job_name: 'orchestrator'
+    static_configs:
+      - targets: ['orchestrator:7000']
+    metrics_path: /metrics
+
+  # Admin Dashboard
+  - job_name: 'admin'
+    static_configs:
+      - targets: ['admin:8000']
+    metrics_path: /metrics
+
+  # Node Exporter (if available)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['host.docker.internal:9100']
+
+  # NVIDIA GPU Exporter (if available)
+  - job_name: 'nvidia-gpu'
+    static_configs:
+      - targets: ['host.docker.internal:9835']

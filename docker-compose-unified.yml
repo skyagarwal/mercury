@@ -1,0 +1,253 @@
+# Mangwale Voice + Escotel Unified Stack
+# Mercury Server (192.168.0.151) - Connected to Jupiter (192.168.0.156)
+#
+# This combines:
+# - Voice Stack (ASR, TTS, Voice Agent, Gateway)
+# - Escotel Stack (SMS, Calls, Webhooks)
+#
+# Usage:
+#   docker compose -f docker-compose-unified.yml up -d
+#
+# Services:
+#   Voice:  http://192.168.0.151:8080 (Gateway), :8090 (Agent), :7000 (ASR), :8010 (TTS)
+#   Exotel: http://192.168.0.151:3100 (API), :3101 (UI)
+
+version: '3.8'
+
+services:
+  # ==========================================================================
+  #                           VOICE STACK
+  # ==========================================================================
+
+  # Voice Gateway - WebSocket bridge for real-time voice
+  voice-gateway:
+    build:
+      context: ./voice-gateway
+      dockerfile: Dockerfile.python
+    container_name: mangwale-voice-gateway
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ASR_URL=http://asr:8000
+      - VOICE_AGENT_URL=http://voice-agent:8090
+      - TTS_URL=http://tts-xtts:80
+    depends_on:
+      - asr
+      - voice-agent
+      - tts-xtts
+    networks:
+      - voice-net
+
+  # Voice Agent - Jupiter-connected orchestrator with Exotel escalation
+  voice-agent:
+    build:
+      context: ./voice-agent
+      dockerfile: Dockerfile.jupiter
+    container_name: mangwale-voice-agent
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      # Jupiter connection (NO DUPLICATION)
+      - JUPITER_HOST=192.168.0.156
+      - JUPITER_BACKEND_URL=http://192.168.0.156:3200
+      - JUPITER_VLLM_URL=http://192.168.0.156:8002
+      - JUPITER_NLU_URL=http://192.168.0.156:7010
+      # Local TTS services
+      - TTS_XTTS_URL=http://tts-xtts:80
+      - TTS_ORPHEUS_URL=http://tts-orpheus:8020
+      - ASR_URL=http://asr:8000
+      # Exotel integration for escalation
+      - EXOTEL_SERVICE_URL=http://exotel-service:3000
+      # Voice settings
+      - ENABLE_FILLERS=true
+      - ENABLE_EMOTION=true
+      - ENABLE_ESCALATION=true
+    depends_on:
+      - asr
+      - tts-xtts
+      - exotel-service
+    networks:
+      - voice-net
+
+  # ASR - Faster Whisper Large-v3
+  asr:
+    image: fedirz/faster-whisper-server:latest-cuda
+    container_name: mangwale-asr
+    restart: unless-stopped
+    ports:
+      - "7000:8000"
+    environment:
+      - WHISPER__MODEL=Systran/faster-whisper-large-v3
+      - WHISPER__DEVICE=cuda
+      - WHISPER__COMPUTE_TYPE=float16
+      - WHISPER__LANGUAGE=auto
+      - WHISPER__INITIAL_PROMPT=This is a conversation in Hindi and English (Hinglish). Common words: Mangwale, parcel, delivery, order, karo, chahiye, bhejo.
+    volumes:
+      - whisper-cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - voice-net
+
+  # TTS - XTTS (Hindi optimized)
+  tts-xtts:
+    image: ghcr.io/coqui-ai/xtts-streaming-server:latest
+    container_name: mangwale-tts-xtts
+    restart: unless-stopped
+    ports:
+      - "8010:80"
+    environment:
+      - COQUI_TOS_AGREED=1
+    volumes:
+      - xtts-models:/root/.local/share/tts
+      - ./models/xtts:/app/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - voice-net
+
+  # TTS - Orpheus (English with emotions) - Optional
+  tts-orpheus:
+    build:
+      context: ./orpheus-tts
+      dockerfile: Dockerfile
+    container_name: mangwale-tts-orpheus
+    restart: unless-stopped
+    ports:
+      - "8020:8020"
+    environment:
+      - ORPHEUS_MODEL=canopylabs/orpheus-tts-0.1-finetune-prod
+      - ORPHEUS_DEVICE=cuda
+      - DEFAULT_VOICE=tara
+    volumes:
+      - orpheus-cache:/root/.cache
+    profiles:
+      - orpheus  # Start with: docker compose --profile orpheus up
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    networks:
+      - voice-net
+
+  # ==========================================================================
+  #                         ESCOTEL STACK
+  # ==========================================================================
+
+  # Exotel Service - SMS & Calls API
+  exotel-service:
+    build:
+      context: ./escotel-stack/exotel-service
+      dockerfile: Dockerfile
+    container_name: mangwale-exotel-service
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    environment:
+      - PORT=3000
+      - MQ_BROKER_URL=amqp://mangwale:mangwale@rabbitmq:5672
+      - CORS_ALLOWED_ORIGINS=http://192.168.0.151:3101,http://localhost:3101,http://192.168.0.151:8080
+      - UI_PASSWORD=${EXOTEL_UI_PASSWORD:-mangwale123}
+      - EXOTEL_API_KEY=${EXOTEL_API_KEY:-45b760cdb422e20a924c0a86b49b7383ceee5d7667cd2bbf}
+      - EXOTEL_API_TOKEN=${EXOTEL_API_TOKEN:-66a78a354493da387a7af6a30bbf723cf8fe508c7de0ccd5}
+      - EXOTEL_SID=${EXOTEL_SID:-sarvinsuppliesllp1}
+      - EXOTEL_SUBDOMAIN=${EXOTEL_SUBDOMAIN:-api}
+      - EXOTEL_REGION=${EXOTEL_REGION:-}
+    depends_on:
+      - rabbitmq
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    networks:
+      - voice-net
+
+  # Exotel UI - Dashboard
+  exotel-ui:
+    build:
+      context: ./escotel-stack/exotel-ui
+      dockerfile: Dockerfile
+    container_name: mangwale-exotel-ui
+    restart: unless-stopped
+    ports:
+      - "3101:80"
+    networks:
+      - voice-net
+
+  # RabbitMQ - Message queue for Exotel events
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: mangwale-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    environment:
+      - RABBITMQ_DEFAULT_USER=mangwale
+      - RABBITMQ_DEFAULT_PASS=mangwale
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - voice-net
+
+  # ==========================================================================
+  #                           WEB UI
+  # ==========================================================================
+
+  # Web UI - Voice agent test interface
+  web-ui:
+    image: nginx:alpine
+    container_name: mangwale-voice-ui
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    volumes:
+      - ./web-ui:/usr/share/nginx/html:ro
+    networks:
+      - voice-net
+
+# ==========================================================================
+#                           VOLUMES & NETWORKS
+# ==========================================================================
+
+volumes:
+  whisper-cache:
+  xtts-models:
+  orpheus-cache:
+  rabbitmq-data:
+
+networks:
+  voice-net:
+    name: mangwale-voice
+    driver: bridge

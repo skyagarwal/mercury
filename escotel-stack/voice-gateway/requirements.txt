@@ -1,0 +1,29 @@
+# Mangwale Voice Gateway
+# WebRTC, SIP, VAD, Turn-Taking
+
+# Core
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+python-multipart>=0.0.6
+
+# PyTorch (for Silero VAD)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch>=2.2.0
+
+# Audio Processing
+numpy>=1.24.0
+scipy>=1.11.0
+
+# WebSocket
+websockets>=12.0
+
+# HTTP client
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Utilities
+python-dotenv>=1.0.0
+
+# Monitoring
+prometheus-client>=0.19.0

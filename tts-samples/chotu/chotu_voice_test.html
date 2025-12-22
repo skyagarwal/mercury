@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chotu Voice Character Test</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .character-desc {
+            background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 5px solid #ff9800;
+        }
+        .character-desc h2 {
+            color: #e65100;
+            margin-top: 0;
+            font-size: 1.3em;
+        }
+        .character-desc p {
+            color: #5d4037;
+            line-height: 1.6;
+            margin: 0;
+        }
+        .settings-box {
+            background: #f5f5f5;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 25px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+        .settings-box code {
+            color: #d32f2f;
+        }
+        .sample-section {
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #1976d2;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #e3f2fd;
+        }
+        .sample-card {
+            background: #fafafa;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .sample-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+        .sample-info {
+            flex: 1;
+        }
+        .sample-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+        .sample-text {
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+        }
+        .sample-params {
+            font-size: 0.75em;
+            color: #9c27b0;
+            margin-top: 4px;
+        }
+        audio {
+            width: 280px;
+            height: 40px;
+        }
+        .emotion-tag {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 15px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-right: 5px;
+        }
+        .emotion-sweet { background: #fce4ec; color: #c2185b; }
+        .emotion-polite { background: #e8f5e9; color: #2e7d32; }
+        .emotion-shy { background: #f3e5f5; color: #7b1fa2; }
+        .emotion-helpful { background: #e3f2fd; color: #1565c0; }
+        .style-chotu { background: #fff3e0; color: #e65100; }
+        
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #666;
+            font-size: 0.85em;
+        }
+        
+        @media (max-width: 600px) {
+            .sample-card {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            audio {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧒 Chotu Voice Character</h1>
+        
+        <div class="character-desc">
+            <h2>Character Profile</h2>
+            <p>
+                <strong>Name:</strong> Chotu<br>
+                <strong>Personality:</strong> Sweet, innocent village boy working in the city<br>
+                <strong>Traits:</strong> Helpful, eager to please, polite, warm, slightly shy<br>
+                <strong>Voice:</strong> Gentle, soft-spoken, thoughtful pacing, sincere tone
+            </p>
+        </div>
+        
+        <div class="settings-box">
+            <strong>ChatterBox Settings for Chotu:</strong><br>
+            <code>exaggeration: 0.35</code> (lower = gentler, softer tone)<br>
+            <code>cfg_weight: 0.35</code> (lower = slower, more thoughtful pacing)
+        </div>
+        
+        <div class="sample-section">
+            <div class="section-title">🇮🇳 Hindi Samples</div>
+            
+            <div class="sample-card">
+                <div class="sample-info">
+                    <div class="sample-name">
+                        <span class="emotion-tag style-chotu">style: chotu</span>
+                        Hindi Greeting
+                    </div>
+                    <div class="sample-text">"नमस्ते जी, मैं छोटू हूं। मैं आपकी मदद कैसे कर सकता हूं?"</div>
+                    <div class="sample-params">exag=0.35, cfg=0.35</div>
+                </div>
+                <audio controls src="chotu_hindi_greeting.wav"></audio>
+            </div>
+            
+            <div class="sample-card">
+                <div class="sample-info">
+                    <div class="sample-name">
+                        <span class="emotion-tag style-chotu">style: chotu_helpful</span>
+                        Helpful Response
+                    </div>
+                    <div class="sample-text">"जी साहब, मैं अभी आपकी मदद करता हूं।"</div>
+                    <div class="sample-params">exag=0.4, cfg=0.35</div>
+                </div>
+                <audio controls src="chotu_hindi_helping.wav"></audio>
+            </div>
+            
+            <div class="sample-card">
+                <div class="sample-info">
+                    <div class="sample-name">
+                        <span class="emotion-tag emotion-sweet">emotion: sweet</span>
+                        Sweet Tone
+                    </div>
+                    <div class="sample-text">"जी साहब, मैं समझ गया। मैं अभी देखता हूं।"</div>
+                    <div class="sample-params">exag=0.35, cfg=0.35</div>
+                </div>
+                <audio controls src="chotu_sweet.wav"></audio>
+            </div>
+            
+            <div class="sample-card">
+                <div class="sample-info">
+                    <div class="sample-name">
+                        <span class="emotion-tag emotion-polite">emotion: polite</span>
+                        Polite/Apologetic
+                    </div>
+                    <div class="sample-text">"माफ कीजिए साहब, थोड़ी देर लग गई।"</div>
+                    <div class="sample-params">exag=0.35, cfg=0.45</div>
+                </div>
+                <audio controls src="chotu_polite.wav"></audio>
+            </div>
+            
+            <div class="sample-card">
+                <div class="sample-info">
+                    <div class="sample-name">
+                        <span class="emotion-tag emotion-shy">emotion: shy</span>
+                        Shy/Hesitant
+                    </div>
+                    <div class="sample-text">"जी... मैं कोशिश करता हूं।"</div>
+                    <div class="sample-params">exag=0.25, cfg=0.5</div>
+                </div>
+                <audio controls src="chotu_shy.wav"></audio>
+            </div>
+            
+            <div class="sample-card">
+                <div class="sample-info">
+                    <div class="sample-name">
+                        <span class="emotion-tag style-chotu">style: chotu_greeting</span>
+                        Sweet Hindi
+                    </div>
+                    <div class="sample-text">"जी बोलिए, छोटू यहीं है।"</div>
+                    <div class="sample-params">exag=0.3, cfg=0.4</div>
+                </div>
+                <audio controls src="chotu_hindi_sweet.wav"></audio>
+            </div>
+        </div>
+        
+        <div class="sample-section">
+            <div class="section-title">🇮🇳 Marathi Samples</div>
+            
+            <div class="sample-card">
+                <div class="sample-info">
+                    <div class="sample-name">
+                        <span class="emotion-tag style-chotu">style: chotu</span>
+                        Marathi Greeting
+                    </div>
+                    <div class="sample-text">"नमस्कार साहेब, मी छोटू आहे। मी तुमची मदत कशी करू?"</div>
+                    <div class="sample-params">exag=0.35, cfg=0.35</div>
+                </div>
+                <audio controls src="chotu_marathi_greeting.wav"></audio>
+            </div>
+        </div>
+        
+        <div class="sample-section">
+            <div class="section-title">🧪 Quick Test</div>
+            
+            <div class="sample-card">
+                <div class="sample-info">
+                    <div class="sample-name">Simple Test</div>
+                    <div class="sample-text">"नमस्ते जी!"</div>
+                    <div class="sample-params">Default Chotu settings</div>
+                </div>
+                <audio controls src="chotu_test.wav"></audio>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <strong>ChatterBox TTS</strong> | Chotu Voice Character<br>
+            Generated: December 19, 2024
+        </div>
+    </div>
+</body>
+</html>

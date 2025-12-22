@@ -1,0 +1,303 @@
+###############################################################################
+# MANGWALE VOICE SERVICES - Mercury Server
+# Real-time ASR (Whisper) + TTS (Orpheus) with WebSocket Streaming
+# Network: mangwale_voice_network
+# GPU: RTX 3060 12GB
+###############################################################################
+
+networks:
+  voice_network:
+    driver: bridge
+    name: mangwale_voice_network
+
+volumes:
+  whisper_cache:
+    name: mangwale_whisper_cache
+  huggingface_cache:
+    name: mangwale_huggingface_cache
+  voice_gateway_logs:
+    name: mangwale_voice_gateway_logs
+
+services:
+  ###########################################################################
+  # ASR Service - Faster-Whisper Large-v3 with GPU
+  # Handles: Speech-to-Text conversion
+  # GPU Memory: ~3-4GB for large-v3
+  ###########################################################################
+  asr:
+    build:
+      context: ./faster-whisper-asr
+      dockerfile: Dockerfile
+    container_name: mangwale_asr
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "7000:8000"
+    environment:
+      # Whisper Configuration - SPEED optimized
+      - WHISPER_MODEL=distil-large-v3
+      - WHISPER_DEVICE=cuda
+      - WHISPER_COMPUTE_TYPE=float16
+      - WHISPER_BEAM_SIZE=1
+      - WHISPER_BEST_OF=1
+      - WHISPER_VAD_FILTER=true
+      - WHISPER_LANGUAGE=auto
+      # Performance tuning
+      - WHISPER_NUM_WORKERS=2
+      - WHISPER_CPU_THREADS=4
+    volumes:
+      - whisper_cache:/root/.cache
+      - ./logs/asr:/app/logs
+    networks:
+      - voice_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 180s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  ###########################################################################
+  # TTS Service - Orpheus TTS 3B (Official from CanopyAI)
+  # Optimized for RTX 3060 12GB with ASR coexistence
+  # GPU Memory: ~7GB (leaving ~5GB for ASR)
+  ###########################################################################
+  tts:
+    build:
+      context: ./orpheus-tts
+      dockerfile: Dockerfile
+    container_name: mangwale_tts
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "8010:8020"
+    environment:
+      # Model configuration
+      - ORPHEUS_MODEL=canopylabs/orpheus-3b-0.1-ft
+      # RTX 3060 12GB SPEED optimized settings
+      - MAX_MODEL_LEN=1024
+      - GPU_MEMORY_UTIL=0.65
+      - ENFORCE_EAGER=false
+      - MAX_NUM_SEQS=1
+      # HuggingFace authentication
+      - HF_TOKEN=${HF_TOKEN}
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - HF_HOME=/root/.cache/huggingface
+      # CUDA settings
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./logs/tts:/app/logs
+    networks:
+      - voice_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 600s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  ###########################################################################
+  # Voice Gateway - Real-time WebSocket Streaming
+  # Handles: Bidirectional audio streaming, session management
+  # Connects ASR/TTS with main application
+  ###########################################################################
+  voice-gateway:
+    build:
+      context: ./voice-gateway
+      dockerfile: Dockerfile
+    container_name: mangwale_voice_gateway
+    restart: unless-stopped
+    ports:
+      - "7100:7100"      # WebSocket port
+      - "7101:7101"      # HTTP REST API
+    environment:
+      - NODE_ENV=production
+      - WS_PORT=7100
+      - HTTP_PORT=7101
+      - ASR_URL=http://asr:8000
+      - TTS_URL=http://tts:8020
+      - LOG_LEVEL=info
+      # WebSocket settings
+      - WS_PING_INTERVAL=25000
+      - WS_PING_TIMEOUT=60000
+      - MAX_AUDIO_BUFFER_SIZE=2097152
+      # Rate limiting
+      - RATE_LIMIT_WINDOW_MS=60000
+      - RATE_LIMIT_MAX_REQUESTS=100
+      # CORS for Mangwale domains
+      - CORS_ORIGINS=https://api.mangwale.ai,https://admin.mangwale.ai,https://chat.mangwale.ai,http://localhost:3000
+      # JWT for authentication (same secret as Jupiter)
+      - JWT_SECRET=${JWT_SECRET:-mangwale_jwt_secret_2024}
+      # Provider Priority (ElevenLabs first for realtime, local as fallback)
+      - ASR_PROVIDER_PRIORITY=local,deepgram,google,azure
+      - TTS_PROVIDER_PRIORITY=elevenlabs,local,deepgram,google,azure
+      # Cloud ASR Providers (add your API keys)
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-}
+      - GOOGLE_CLOUD_API_KEY=${GOOGLE_CLOUD_API_KEY:-}
+      - AZURE_SPEECH_KEY=${AZURE_SPEECH_KEY:-}
+      - AZURE_SPEECH_REGION=${AZURE_SPEECH_REGION:-centralindia}
+      # Cloud TTS Providers
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+      - ELEVENLABS_VOICE_ID=${ELEVENLABS_VOICE_ID:-pNInz6obpgDQGcFmaJgB}
+      # Real-time features
+      - ENABLE_VAD=true
+      - VAD_SILENCE_THRESHOLD_MS=700
+      - STREAMING_CHUNK_SIZE_MS=100
+    volumes:
+      - ./logs/gateway:/app/logs
+    networks:
+      - voice_network
+    depends_on:
+      asr:
+        condition: service_healthy
+      tts:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:7101/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+  ###########################################################################
+  # Voice Agent v2 - Real-time Voice AI with Function Calling
+  # Handles: Multi-turn conversations, tool use, session management
+  ###########################################################################
+  voice-agent-v2:
+    build:
+      context: ./voice-agent-v2
+      dockerfile: Dockerfile
+    container_name: mangwale_voice_agent_v2
+    restart: unless-stopped
+    ports:
+      - "8091:8091"
+    environment:
+      - ASR_SERVICE_URL=http://asr:8000
+      - TTS_SERVICE_URL=http://tts:8020
+      - TTS_ORPHEUS_URL=http://tts:8020
+      - LLM_SERVICE_URL=http://192.168.0.156:8002/v1
+      - NLU_SERVICE_URL=http://192.168.0.156:7010
+      - MANGWALE_API_URL=http://192.168.0.156:3200
+      - REDIS_URL=redis://192.168.0.156:6381
+      - DEFAULT_VOICE=tara
+      - DEFAULT_LANGUAGE=en
+      - TTS_PROVIDER=orpheus
+      - VAD_THRESHOLD=0.5
+      - SILENCE_DURATION_MS=700
+    networks:
+      - voice_network
+    depends_on:
+      asr:
+        condition: service_healthy
+      tts:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8091/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  ###########################################################################
+  ###########################################################################
+  # OPTIONAL: Orpheus TTS on separate port (for testing/comparison)
+  # Uncomment if you want to run Orpheus alongside primary TTS
+  ###########################################################################
+  # orpheus-tts-alt:
+  #   build:
+  #     context: ./orpheus-tts
+  #     dockerfile: Dockerfile
+  #   container_name: mangwale_orpheus_tts_alt
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   ports:
+  #     - "8020:8020"
+  #   environment:
+  #     - ORPHEUS_MODEL=canopylabs/orpheus-3b-0.1-ft
+  #     - ORPHEUS_MAX_MODEL_LEN=2048
+  #     - HF_TOKEN=${HF_TOKEN}
+  #     - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+  #   volumes:
+  #     - ~/.cache/huggingface:/root/.cache/huggingface
+  #   networks:
+  #     - voice_network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 300s
+
+  ###########################################################################
+  # OPTIONAL: Indic Parler-TTS - Best Hindi/Indian TTS (uncomment to use)
+  # Better quality than XTTS for Indian languages
+  # GPU Memory: ~4GB for 0.9B model
+  ###########################################################################
+  # indic-parler-tts:
+  #   build:
+  #     context: ./indic-parler-tts
+  #     dockerfile: Dockerfile
+  #   container_name: mangwale_indic_tts
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   ports:
+  #     - "8011:5501"
+  #   environment:
+  #     - TTS_MODEL=ai4bharat/indic-parler-tts
+  #     - TTS_DEVICE=cuda
+  #     - DEFAULT_SPEAKER=Divya
+  #     - HF_TOKEN=${HF_TOKEN:-}
+  #   volumes:
+  #     - ~/.cache/huggingface:/root/.cache/huggingface
+  #   networks:
+  #     - voice_network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:5501/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 300s

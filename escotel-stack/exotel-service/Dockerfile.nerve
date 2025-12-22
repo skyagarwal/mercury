@@ -1,0 +1,25 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY nerve_system.py .
+
+# Environment variables
+ENV DEBUG_MODE=false
+ENV ASR_URL=http://asr:7001
+ENV TTS_URL=http://tts:7002
+ENV JUPITER_URL=http://192.168.0.156:3200
+
+EXPOSE 7100
+
+CMD ["python", "nerve_system.py"]

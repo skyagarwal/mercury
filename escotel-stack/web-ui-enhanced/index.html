@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mangwale Voice - Test Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .pulse-recording {
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .waveform {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            height: 40px;
+        }
+        .waveform-bar {
+            width: 4px;
+            background: linear-gradient(to top, #3b82f6, #8b5cf6);
+            border-radius: 2px;
+            animation: wave 0.5s infinite ease-in-out;
+        }
+        @keyframes wave {
+            0%, 100% { height: 10px; }
+            50% { height: 30px; }
+        }
+        .waveform-bar:nth-child(2) { animation-delay: 0.1s; }
+        .waveform-bar:nth-child(3) { animation-delay: 0.2s; }
+        .waveform-bar:nth-child(4) { animation-delay: 0.3s; }
+        .waveform-bar:nth-child(5) { animation-delay: 0.4s; }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 min-h-screen text-white">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                🎙️ Mangwale Voice AI
+            </h1>
+            <p class="text-gray-400">Next-Gen GPU Voice Stack - Test Interface</p>
+        </div>
+        
+        <!-- Status Bar -->
+        <div class="bg-gray-800/50 rounded-xl p-4 mb-6 flex flex-wrap gap-4 justify-center">
+            <div class="flex items-center gap-2">
+                <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                <span class="text-sm">Gateway</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="asr-status" class="w-3 h-3 rounded-full bg-gray-500"></span>
+                <span class="text-sm">ASR</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="tts-status" class="w-3 h-3 rounded-full bg-gray-500"></span>
+                <span class="text-sm">TTS</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="llm-status" class="w-3 h-3 rounded-full bg-gray-500"></span>
+                <span class="text-sm">LLM</span>
+            </div>
+            <div class="bg-gray-700 rounded-lg px-3 py-1 text-sm">
+                GPU: <span id="gpu-usage">--</span>%
+            </div>
+        </div>
+
+        <!-- Main Chat Interface -->
+        <div class="bg-gray-800/50 rounded-xl p-6 mb-6">
+            <!-- Language Selector -->
+            <div class="flex gap-2 mb-4">
+                <button onclick="setLanguage('hi')" id="lang-hi" 
+                        class="px-4 py-2 rounded-lg bg-blue-600 text-white transition">
+                    हिंदी
+                </button>
+                <button onclick="setLanguage('en')" id="lang-en" 
+                        class="px-4 py-2 rounded-lg bg-gray-700 text-white transition hover:bg-gray-600">
+                    English
+                </button>
+                <button onclick="setLanguage('mr')" id="lang-mr" 
+                        class="px-4 py-2 rounded-lg bg-gray-700 text-white transition hover:bg-gray-600">
+                    मराठी
+                </button>
+            </div>
+
+            <!-- Chat Messages -->
+            <div id="chat-messages" class="h-80 overflow-y-auto mb-4 space-y-4 p-4 bg-gray-900/50 rounded-lg">
+                <div class="text-center text-gray-500 py-8">
+                    <p>🎤 Click the microphone to start talking</p>
+                    <p class="text-sm mt-2">or type a message below</p>
+                </div>
+            </div>
+
+            <!-- Recording Indicator -->
+            <div id="recording-indicator" class="hidden mb-4 flex items-center justify-center gap-4">
+                <div class="waveform">
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                    <div class="waveform-bar"></div>
+                </div>
+                <span class="text-blue-400">Listening...</span>
+            </div>
+
+            <!-- Input Area -->
+            <div class="flex gap-3">
+                <button id="mic-btn" onclick="toggleRecording()"
+                        class="w-14 h-14 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 flex items-center justify-center text-2xl hover:scale-105 transition shadow-lg">
+                    🎤
+                </button>
+                <input type="text" id="text-input" placeholder="Type a message..." 
+                       class="flex-1 bg-gray-700 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                       onkeypress="if(event.key === 'Enter') sendTextMessage()">
+                <button onclick="sendTextMessage()"
+                        class="px-6 py-3 bg-blue-600 rounded-lg hover:bg-blue-700 transition">
+                    Send
+                </button>
+            </div>
+        </div>
+
+        <!-- TTS Test Panel -->
+        <div class="bg-gray-800/50 rounded-xl p-6 mb-6">
+            <h3 class="text-lg font-semibold mb-4">🔊 TTS Test</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="text-sm text-gray-400 mb-1 block">Text to Speak</label>
+                    <textarea id="tts-text" rows="3" 
+                              class="w-full bg-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >नमस्ते, मैं मंगवाले AI हूँ। आज मैं आपकी कैसे मदद कर सकता हूँ?</textarea>
+                </div>
+                <div>
+                    <label class="text-sm text-gray-400 mb-1 block">Model</label>
+                    <select id="tts-model" class="w-full bg-gray-700 rounded-lg px-4 py-2 mb-3">
+                        <option value="auto">Auto (Language-based)</option>
+                        <option value="chatterbox">Chatterbox-Turbo (EN)</option>
+                        <option value="indic-parler">Indic-Parler (HI/MR)</option>
+                        <option value="kokoro">Kokoro-82M (Fast)</option>
+                    </select>
+                    <button onclick="testTTS()" 
+                            class="w-full px-4 py-2 bg-green-600 rounded-lg hover:bg-green-700 transition">
+                        Generate Speech
+                    </button>
+                </div>
+            </div>
+            <div id="tts-result" class="mt-4 hidden">
+                <audio id="tts-audio" controls class="w-full"></audio>
+                <p class="text-sm text-gray-400 mt-2">
+                    Latency: <span id="tts-latency">--</span>ms | Model: <span id="tts-model-used">--</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- ASR Test Panel -->
+        <div class="bg-gray-800/50 rounded-xl p-6 mb-6">
+            <h3 class="text-lg font-semibold mb-4">🎧 ASR Test</h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="text-sm text-gray-400 mb-1 block">Upload Audio File</label>
+                    <input type="file" id="asr-file" accept="audio/*" 
+                           class="w-full bg-gray-700 rounded-lg px-4 py-2">
+                </div>
+                <div>
+                    <label class="text-sm text-gray-400 mb-1 block">Language</label>
+                    <select id="asr-language" class="w-full bg-gray-700 rounded-lg px-4 py-2 mb-3">
+                        <option value="auto">Auto Detect</option>
+                        <option value="hi" selected>Hindi</option>
+                        <option value="en">English</option>
+                        <option value="mr">Marathi</option>
+                    </select>
+                    <button onclick="testASR()" 
+                            class="w-full px-4 py-2 bg-purple-600 rounded-lg hover:bg-purple-700 transition">
+                        Transcribe
+                    </button>
+                </div>
+            </div>
+            <div id="asr-result" class="mt-4 hidden bg-gray-900/50 rounded-lg p-4">
+                <p class="text-sm text-gray-400 mb-2">Transcription:</p>
+                <p id="asr-text" class="text-lg"></p>
+                <p class="text-sm text-gray-400 mt-2">
+                    Latency: <span id="asr-latency">--</span>ms | Language: <span id="asr-lang-detected">--</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Metrics Panel -->
+        <div class="bg-gray-800/50 rounded-xl p-6">
+            <h3 class="text-lg font-semibold mb-4">📊 Live Metrics</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="bg-gray-900/50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-blue-400" id="metric-calls">0</p>
+                    <p class="text-sm text-gray-400">Total Calls</p>
+                </div>
+                <div class="bg-gray-900/50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-green-400" id="metric-tts-latency">--</p>
+                    <p class="text-sm text-gray-400">Avg TTS (ms)</p>
+                </div>
+                <div class="bg-gray-900/50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-purple-400" id="metric-asr-latency">--</p>
+                    <p class="text-sm text-gray-400">Avg ASR (ms)</p>
+                </div>
+                <div class="bg-gray-900/50 rounded-lg p-4 text-center">
+                    <p class="text-3xl font-bold text-orange-400" id="metric-gpu-mem">--</p>
+                    <p class="text-sm text-gray-400">GPU Mem (GB)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_BASE = window.location.origin;
+        const WS_BASE = `ws://${window.location.host}`;
+        
+        let currentLanguage = 'hi';
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let sessionId = 'web-' + Date.now();
+        
+        // Language selector
+        function setLanguage(lang) {
+            currentLanguage = lang;
+            document.querySelectorAll('[id^="lang-"]').forEach(btn => {
+                btn.classList.remove('bg-blue-600');
+                btn.classList.add('bg-gray-700');
+            });
+            document.getElementById(`lang-${lang}`).classList.remove('bg-gray-700');
+            document.getElementById(`lang-${lang}`).classList.add('bg-blue-600');
+        }
+        
+        // Add message to chat
+        function addMessage(text, isUser = false) {
+            const chatDiv = document.getElementById('chat-messages');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+            msgDiv.innerHTML = `
+                <div class="max-w-[80%] ${isUser ? 'bg-blue-600' : 'bg-gray-700'} rounded-lg px-4 py-2">
+                    ${text}
+                </div>
+            `;
+            chatDiv.appendChild(msgDiv);
+            chatDiv.scrollTop = chatDiv.scrollHeight;
+        }
+        
+        // Send text message
+        async function sendTextMessage() {
+            const input = document.getElementById('text-input');
+            const text = input.value.trim();
+            if (!text) return;
+            
+            addMessage(text, true);
+            input.value = '';
+            
+            try {
+                const response = await fetch(`${API_BASE}/api/chat`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        message: text,
+                        language: currentLanguage
+                    })
+                });
+                
+                const data = await response.json();
+                addMessage(data.response);
+                
+                // Play TTS response
+                if (data.response) {
+                    playTTSResponse(data.response);
+                }
+            } catch (err) {
+                console.error('Chat error:', err);
+                addMessage('❌ Error: Could not get response', false);
+            }
+        }
+        
+        // Toggle recording
+        async function toggleRecording() {
+            const micBtn = document.getElementById('mic-btn');
+            const indicator = document.getElementById('recording-indicator');
+            
+            if (isRecording) {
+                // Stop recording
+                isRecording = false;
+                mediaRecorder?.stop();
+                micBtn.innerHTML = '🎤';
+                micBtn.classList.remove('pulse-recording', 'bg-red-600');
+                indicator.classList.add('hidden');
+            } else {
+                // Start recording
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+                    
+                    mediaRecorder.ondataavailable = (e) => {
+                        audioChunks.push(e.data);
+                    };
+                    
+                    mediaRecorder.onstop = async () => {
+                        const audioBlob = new Blob(audioChunks, {type: 'audio/webm'});
+                        await transcribeAudio(audioBlob);
+                        stream.getTracks().forEach(track => track.stop());
+                    };
+                    
+                    mediaRecorder.start();
+                    isRecording = true;
+                    micBtn.innerHTML = '⏹️';
+                    micBtn.classList.add('pulse-recording', 'bg-red-600');
+                    indicator.classList.remove('hidden');
+                    
+                } catch (err) {
+                    console.error('Microphone error:', err);
+                    alert('Could not access microphone');
+                }
+            }
+        }
+        
+        // Transcribe audio
+        async function transcribeAudio(audioBlob) {
+            const formData = new FormData();
+            formData.append('file', audioBlob, 'recording.webm');
+            formData.append('language', currentLanguage);
+            
+            try {
+                const response = await fetch(`${API_BASE}/v1/audio/transcriptions`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (data.text) {
+                    addMessage(data.text, true);
+                    // Send to chat
+                    document.getElementById('text-input').value = data.text;
+                    sendTextMessage();
+                }
+            } catch (err) {
+                console.error('Transcription error:', err);
+            }
+        }
+        
+        // Play TTS response
+        async function playTTSResponse(text) {
+            try {
+                const response = await fetch(`${API_BASE}/v1/audio/speech`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        input: text,
+                        language: currentLanguage,
+                        model: 'auto'
+                    })
+                });
+                
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                const audio = new Audio(audioUrl);
+                audio.play();
+            } catch (err) {
+                console.error('TTS playback error:', err);
+            }
+        }
+        
+        // Test TTS
+        async function testTTS() {
+            const text = document.getElementById('tts-text').value;
+            const model = document.getElementById('tts-model').value;
+            
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch(`${API_BASE}/v1/audio/speech`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        input: text,
+                        language: currentLanguage,
+                        model: model
+                    })
+                });
+                
+                const latency = Date.now() - startTime;
+                const audioBlob = await response.blob();
+                const audioUrl = URL.createObjectURL(audioBlob);
+                
+                document.getElementById('tts-audio').src = audioUrl;
+                document.getElementById('tts-latency').textContent = latency;
+                document.getElementById('tts-model-used').textContent = model;
+                document.getElementById('tts-result').classList.remove('hidden');
+                
+            } catch (err) {
+                console.error('TTS test error:', err);
+                alert('TTS test failed: ' + err.message);
+            }
+        }
+        
+        // Test ASR
+        async function testASR() {
+            const fileInput = document.getElementById('asr-file');
+            const language = document.getElementById('asr-language').value;
+            
+            if (!fileInput.files[0]) {
+                alert('Please select an audio file');
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('language', language);
+            
+            const startTime = Date.now();
+            
+            try {
+                const response = await fetch(`${API_BASE}/v1/audio/transcriptions`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const latency = Date.now() - startTime;
+                const data = await response.json();
+                
+                document.getElementById('asr-text').textContent = data.text || 'No transcription';
+                document.getElementById('asr-latency').textContent = latency;
+                document.getElementById('asr-lang-detected').textContent = data.language || language;
+                document.getElementById('asr-result').classList.remove('hidden');
+                
+            } catch (err) {
+                console.error('ASR test error:', err);
+                alert('ASR test failed: ' + err.message);
+            }
+        }
+        
+        // Check service health
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/api/health/system`);
+                const data = await response.json();
+                
+                // Update status indicators
+                data.services.forEach(svc => {
+                    const id = svc.name.toLowerCase().replace(' ', '-') + '-status';
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.className = `w-3 h-3 rounded-full ${svc.status === 'healthy' ? 'bg-green-500' : 'bg-red-500'}`;
+                    }
+                });
+                
+                // Update GPU
+                if (data.gpu) {
+                    document.getElementById('gpu-usage').textContent = data.gpu.memory_used_percent.toFixed(0);
+                    document.getElementById('metric-gpu-mem').textContent = (data.gpu.memory_used_mb / 1024).toFixed(1);
+                }
+                
+            } catch (err) {
+                console.error('Health check error:', err);
+            }
+        }
+        
+        // Initialize
+        checkHealth();
+        setInterval(checkHealth, 10000);
+    </script>
+</body>
+</html>

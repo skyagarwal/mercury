@@ -1,0 +1,127 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mangwale Exotel Console</title>
+  <style>
+    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #0b1220; color: #e6edf3; }
+    header { padding: 16px 24px; background: #111827; border-bottom: 1px solid #1f2937; }
+    main { padding: 24px; max-width: 960px; margin: 0 auto; }
+    h1 { margin: 0; font-size: 20px; }
+    section { background: #0f172a; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+    label { display: block; font-size: 12px; color: #9ca3af; margin-bottom: 6px; }
+    input, textarea { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid #374151; background: #0b1220; color: #e6edf3; }
+    .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .row-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+    button { background: #2563eb; color: white; border: 0; padding: 10px 16px; border-radius: 8px; cursor: pointer; }
+    button:disabled { opacity: .6; cursor: not-allowed; }
+    pre { background: #0b1220; padding: 12px; border-radius: 8px; border: 1px solid #1f2937; overflow: auto; }
+    .muted { color: #9ca3af; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <header><h1>Mangwale Exotel Console</h1></header>
+  <main>
+    <section>
+      <h3>Service Health</h3>
+      <div class="row-2">
+        <div>
+          <button id="btn-health">Check Health</button>
+        </div>
+        <div>
+          <button id="btn-auth">Check Exotel Auth</button>
+        </div>
+      </div>
+      <pre id="out-health" class="muted">Output will appear here…</pre>
+    </section>
+
+    <section>
+      <h3>Send SMS</h3>
+      <div class="row">
+        <div>
+          <label for="sms-from">From (approved sender)</label>
+          <input id="sms-from" placeholder="Ex: VM-MANGWL" />
+        </div>
+        <div>
+          <label for="sms-to">To (E.164)</label>
+          <input id="sms-to" placeholder="Ex: +91XXXXXXXXXX" />
+        </div>
+        <div>
+          <label for="sms-body">Message</label>
+          <input id="sms-body" placeholder="Hello from Mangwale" />
+        </div>
+      </div>
+      <div style="margin-top:12px"><button id="btn-sms">Send SMS</button></div>
+      <pre id="out-sms" class="muted">Output will appear here…</pre>
+    </section>
+
+    <section>
+      <h3>Connect Call</h3>
+      <div class="row">
+        <div>
+          <label for="call-from">From (caller)</label>
+          <input id="call-from" placeholder="Ex: +91XXXXXXXXXX" />
+        </div>
+        <div>
+          <label for="call-to">To (callee)</label>
+          <input id="call-to" placeholder="Ex: +91YYYYYYYYYY" />
+        </div>
+        <div>
+          <label for="call-callerid">CallerId (Exotel virtual)</label>
+          <input id="call-callerid" placeholder="Ex: 0XXXXXXXXX" />
+        </div>
+      </div>
+      <div style="margin-top:12px"><button id="btn-call">Connect Call</button></div>
+      <pre id="out-call" class="muted">Output will appear here…</pre>
+    </section>
+
+    <section>
+      <h3>Recent Webhook Events</h3>
+      <p class="muted">Last 50 events from /exotel/webhooks/call-status</p>
+      <div style="margin-bottom:8px"><button id="btn-refresh-events">Refresh</button></div>
+      <pre id="out-events" class="muted">No events yet…</pre>
+    </section>
+  </main>
+
+  <script>
+    const api = '/exotel';
+    const out = (id, data) => document.getElementById(id).textContent = (typeof data === 'string') ? data : JSON.stringify(data, null, 2);
+
+    document.getElementById('btn-health').onclick = async () => {
+      const r = await fetch('/health');
+      out('out-health', await r.json());
+    };
+    document.getElementById('btn-auth').onclick = async () => {
+      const r = await fetch(api + '/auth/check');
+      out('out-health', await r.json());
+    };
+
+    document.getElementById('btn-sms').onclick = async () => {
+      const From = document.getElementById('sms-from').value;
+      const To = document.getElementById('sms-to').value;
+      const Body = document.getElementById('sms-body').value;
+      const r = await fetch(api + '/sms', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ From, To, Body }) });
+      out('out-sms', await r.json());
+    };
+
+    document.getElementById('btn-call').onclick = async () => {
+      const From = document.getElementById('call-from').value;
+      const To = document.getElementById('call-to').value;
+      const CallerId = document.getElementById('call-callerid').value;
+      const StatusCallback = location.origin + '/exotel/webhooks/call-status';
+      const r = await fetch(api + '/call/connect', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ From, To, CallerId, StatusCallback }) });
+      out('out-call', await r.json());
+    };
+
+    document.getElementById('btn-refresh-events').onclick = async () => {
+      const r = await fetch(api + '/webhooks/recent');
+      out('out-events', await r.json());
+    };
+
+    // initial
+    document.getElementById('btn-health').click();
+    document.getElementById('btn-refresh-events').click();
+  </script>
+</body>
+</html>

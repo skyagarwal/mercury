@@ -1,0 +1,187 @@
+// ⭐ NEW - Voice Call Tracking for AI Voice Automation
+// Add this to the end of schema.prisma on Jupiter
+
+// Voice Call Types
+enum CallType {
+  VENDOR_ORDER_CONFIRMATION
+  VENDOR_PREP_TIME
+  RIDER_ASSIGNMENT
+  RIDER_PICKUP_READY
+  CUSTOMER_DELIVERY_UPDATE
+}
+
+// Voice Call Status
+enum CallStatus {
+  INITIATED      // Call started
+  RINGING        // Phone ringing
+  ANSWERED       // Call connected
+  ACCEPTED       // User accepted (pressed 1)
+  REJECTED       // User rejected (pressed 0)
+  PREP_TIME_SET  // Prep time collected
+  NO_RESPONSE    // No DTMF input
+  FAILED         // Call failed
+  BUSY           // Line busy
+  CANCELLED      // Cancelled before answer
+}
+
+// Rejection Reasons
+enum RejectionReason {
+  ITEM_UNAVAILABLE    // 1 - आइटम उपलब्ध नहीं है
+  TOO_BUSY           // 2 - बहुत व्यस्त हैं
+  SHOP_CLOSED        // 3 - दुकान बंद है
+  OTHER              // 4 - अन्य कारण
+}
+
+// Voice Call Record - Tracks all AI voice calls
+model VoiceCall {
+  id              String        @id @default(uuid())
+  
+  // Exotel identification
+  exotelCallSid   String        @unique @map("exotel_call_sid")
+  exotelStatus    String?       @map("exotel_status") // Exotel's raw status
+  
+  // Call type
+  callType        CallType      @map("call_type")
+  
+  // Phone numbers
+  fromNumber      String        @map("from_number") @db.VarChar(20) // Exotel caller ID
+  toNumber        String        @map("to_number") @db.VarChar(20)   // Vendor/Rider phone
+  toName          String?       @map("to_name") @db.VarChar(255)    // Vendor/Rider name
+  
+  // Associated entities (from PHP backend)
+  orderId         Int?          @map("order_id")        // PHP order ID
+  vendorId        Int?          @map("vendor_id")       // PHP vendor/restaurant ID
+  riderId         Int?          @map("rider_id")        // PHP rider/deliveryman ID
+  customerId      Int?          @map("customer_id")     // PHP customer ID
+  
+  // Order details (cached for TTS)
+  orderDetails    Json?         @map("order_details")   // Items, amounts, etc.
+  orderAmount     Decimal?      @map("order_amount") @db.Decimal(10, 2)
+  
+  // User response
+  dtmfDigits      String?       @map("dtmf_digits") @db.VarChar(10)
+  status          CallStatus
+  
+  // For accepted orders
+  prepTimeMinutes Int?          @map("prep_time_minutes")
+  
+  // For rejected orders
+  rejectionReason RejectionReason? @map("rejection_reason")
+  rejectionNotes  String?       @map("rejection_notes")
+  
+  // Timing
+  callInitiatedAt DateTime      @default(now()) @map("call_initiated_at")
+  callAnsweredAt  DateTime?     @map("call_answered_at")
+  callEndedAt     DateTime?     @map("call_ended_at")
+  duration        Int?          // Call duration in seconds
+  
+  // Retry management
+  attemptNumber   Int           @default(1) @map("attempt_number")
+  maxAttempts     Int           @default(3) @map("max_attempts")
+  retryAfter      DateTime?     @map("retry_after") // Next retry time if needed
+  
+  // Recording
+  recordingUrl    String?       @map("recording_url")
+  recordingSid    String?       @map("recording_sid")
+  
+  // Callback tracking
+  callbackUrl     String?       @map("callback_url") @db.VarChar(500)
+  callbackSent    Boolean       @default(false) @map("callback_sent")
+  callbackError   String?       @map("callback_error")
+  
+  // Error tracking
+  errorMessage    String?       @map("error_message")
+  errorCode       String?       @map("error_code") @db.VarChar(50)
+  
+  // Audit
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+  
+  // Multi-tenant support
+  tenantId        String        @default("mangwale") @map("tenant_id") @db.VarChar(50)
+  
+  @@index([exotelCallSid], map: "voice_calls_exotel_sid_idx")
+  @@index([orderId], map: "voice_calls_order_id_idx")
+  @@index([vendorId], map: "voice_calls_vendor_id_idx")
+  @@index([riderId], map: "voice_calls_rider_id_idx")
+  @@index([callType], map: "voice_calls_type_idx")
+  @@index([status], map: "voice_calls_status_idx")
+  @@index([callType, status], map: "voice_calls_type_status_idx")
+  @@index([createdAt], map: "voice_calls_created_idx")
+  @@index([tenantId], map: "voice_calls_tenant_idx")
+  @@map("voice_calls")
+}
+
+// Voice Call Attempt - Track individual attempts for analytics
+model VoiceCallAttempt {
+  id              String      @id @default(uuid())
+  voiceCallId     String      @map("voice_call_id")
+  attemptNumber   Int         @map("attempt_number")
+  
+  // Exotel response
+  exotelCallSid   String?     @map("exotel_call_sid")
+  exotelStatus    String?     @map("exotel_status")
+  
+  // Timing
+  initiatedAt     DateTime    @default(now()) @map("initiated_at")
+  answeredAt      DateTime?   @map("answered_at")
+  endedAt         DateTime?   @map("ended_at")
+  duration        Int?        // seconds
+  
+  // Result
+  result          String?     @db.VarChar(50) // answered, no_answer, busy, failed
+  errorMessage    String?     @map("error_message")
+  
+  // Recording (each attempt may have separate recording)
+  recordingUrl    String?     @map("recording_url")
+  
+  @@index([voiceCallId], map: "voice_call_attempts_call_idx")
+  @@index([attemptNumber], map: "voice_call_attempts_num_idx")
+  @@map("voice_call_attempts")
+}
+
+// Voice Call Stats - Aggregated analytics (populated by scheduled job)
+model VoiceCallStats {
+  id                  String    @id @default(uuid())
+  date                DateTime  @db.Date
+  callType            CallType  @map("call_type")
+  
+  // Counts
+  totalCalls          Int       @default(0) @map("total_calls")
+  answeredCalls       Int       @default(0) @map("answered_calls")
+  acceptedCalls       Int       @default(0) @map("accepted_calls")
+  rejectedCalls       Int       @default(0) @map("rejected_calls")
+  failedCalls         Int       @default(0) @map("failed_calls")
+  noResponseCalls     Int       @default(0) @map("no_response_calls")
+  
+  // Rates
+  answerRate          Float?    @map("answer_rate")
+  acceptanceRate      Float?    @map("acceptance_rate")
+  
+  // Timing averages
+  avgDuration         Float?    @map("avg_duration")         // seconds
+  avgPrepTime         Float?    @map("avg_prep_time")        // minutes
+  avgRingTime         Float?    @map("avg_ring_time")        // seconds
+  
+  // Rejection breakdown
+  rejectionItemUnavail Int      @default(0) @map("rejection_item_unavail")
+  rejectionTooBusy    Int       @default(0) @map("rejection_too_busy")
+  rejectionShopClosed Int       @default(0) @map("rejection_shop_closed")
+  rejectionOther      Int       @default(0) @map("rejection_other")
+  
+  // Retry stats
+  firstAttemptSuccess Int       @default(0) @map("first_attempt_success")
+  secondAttemptSuccess Int      @default(0) @map("second_attempt_success")
+  thirdAttemptSuccess Int       @default(0) @map("third_attempt_success")
+  
+  // Multi-tenant
+  tenantId            String    @default("mangwale") @map("tenant_id") @db.VarChar(50)
+  
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  
+  @@unique([date, callType, tenantId], map: "voice_call_stats_unique")
+  @@index([date], map: "voice_call_stats_date_idx")
+  @@index([callType], map: "voice_call_stats_type_idx")
+  @@map("voice_call_stats")
+}

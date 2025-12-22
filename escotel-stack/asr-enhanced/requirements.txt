@@ -1,0 +1,44 @@
+# Mangwale Next-Gen ASR Service
+# Python requirements for GPU-optimized speech-to-text
+
+# Core
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.6
+pydantic>=2.5.0
+
+# PyTorch (CUDA 12.1)
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch>=2.2.0
+torchaudio>=2.2.0
+
+# Faster-Whisper (Primary ASR)
+faster-whisper>=1.0.0
+
+# Audio Processing
+soundfile>=0.12.1
+scipy>=1.11.0
+numpy>=1.24.0
+librosa>=0.10.0
+
+# Transformers (for AI4Bharat models)
+transformers>=4.36.0
+accelerate>=0.25.0
+huggingface_hub>=0.20.0
+
+# IndicConformer dependencies
+onnx>=1.15.0
+onnxruntime-gpu>=1.16.0
+
+# WebSocket support
+websockets>=12.0
+
+# HTTP client for cloud fallback
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Utilities
+python-dotenv>=1.0.0
+
+# Monitoring
+prometheus-client>=0.19.0

@@ -1,0 +1,43 @@
+# =============================================================================
+# Mangwale Nerve System - Standalone
+# =============================================================================
+# Connects to existing ASR/TTS services from mangwale-voice-v2
+#
+# Start: docker compose -f docker-compose-nerve-only.yml up -d --build
+# =============================================================================
+
+services:
+  nerve-system:
+    build:
+      context: ./exotel-service
+      dockerfile: Dockerfile.nerve
+    container_name: nerve-system
+    ports:
+      - "7100:7100"
+    environment:
+      - DEBUG_MODE=true
+      # Connect to mangwale-voice-v2 services
+      - ASR_URL=http://mangwale-asr:7001
+      - TTS_URL=http://mangwale-tts:7002
+      # Jupiter brain
+      - JUPITER_URL=http://192.168.0.156:3200
+      # Exotel credentials
+      - EXOTEL_CALLBACK_URL=https://exotel.mangwale.ai
+      - EXOTEL_SID=${EXOTEL_SID:-sarvinsuppliesllp1}
+      - EXOTEL_API_KEY=${EXOTEL_API_KEY}
+      - EXOTEL_API_TOKEN=${EXOTEL_API_TOKEN}
+      - EXOTEL_CALLER_ID=${EXOTEL_CALLER_ID:-02048556923}
+      - EXOTEL_SUBDOMAIN=${EXOTEL_SUBDOMAIN:-api}
+    restart: unless-stopped
+    networks:
+      - mangwale-voice-v2_mangwale-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  mangwale-voice-v2_mangwale-network:
+    external: true

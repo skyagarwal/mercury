@@ -1,0 +1,54 @@
+# Voice Agent Add-on
+# Adds Jupiter-connected Voice Agent to existing voice stack
+#
+# Usage:
+#   docker compose -f docker-compose-voice-agent.yml up -d
+#
+# Prerequisites:
+#   - ASR running on port 7000
+#   - TTS running on port 8010
+#   - Escotel running on port 3100
+
+services:
+  voice-agent:
+    build:
+      context: ./voice-agent
+      dockerfile: Dockerfile.jupiter
+    container_name: mangwale-voice-agent
+    restart: unless-stopped
+    ports:
+      - "8090:8090"
+    environment:
+      # Jupiter connection (NO DUPLICATION - reuses Jupiter's brain)
+      - JUPITER_HOST=192.168.0.156
+      - JUPITER_BACKEND_URL=http://192.168.0.156:3200
+      - JUPITER_VLLM_URL=http://192.168.0.156:8002
+      - JUPITER_NLU_URL=http://192.168.0.156:7010
+      # Local services (using host network addresses since separate compose)
+      - TTS_XTTS_URL=http://host.docker.internal:8010
+      - TTS_ORPHEUS_URL=http://host.docker.internal:8020
+      - ASR_URL=http://host.docker.internal:7000
+      # Exotel integration for escalation
+      - EXOTEL_SERVICE_URL=http://host.docker.internal:3100
+      # Voice settings
+      - ENABLE_FILLERS=true
+      - ENABLE_EMOTION=true
+      - ENABLE_ESCALATION=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+networks:
+  default:
+    name: mangwale-voice-agent
+    driver: bridge

@@ -1,0 +1,160 @@
+networks:
+  traefik:
+    external: true
+    name: ${TRAEFIK_NETWORK:-traefik_default}
+
+volumes:
+  pgdata:
+  redisdata:
+  rabbitmqdata:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mangwale}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mangwale}
+      POSTGRES_DB: ${POSTGRES_DB:-mangwale}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-mangwale}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-mangwale}
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    environment:
+      - PORT=4000
+      - POSTGRES_URL=postgresql://${POSTGRES_USER:-mangwale}:${POSTGRES_PASSWORD:-mangwale}@postgres:5432/${POSTGRES_DB:-mangwale}
+      - REDIS_URL=redis://redis:6379
+      - MQ_BROKER_URL=amqp://${RABBITMQ_USER:-mangwale}:${RABBITMQ_PASS:-mangwale}@rabbitmq:5672
+    depends_on:
+      - postgres
+      - redis
+      - rabbitmq
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik_default}"
+      - "traefik.http.routers.backend.rule=Host(`${BACKEND_HOST:?set in .env}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.backend.entrypoints=web"
+      - "traefik.http.middlewares.backend-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.backend.middlewares=backend-https-redirect"
+      - "traefik.http.routers.backend-secure.rule=Host(`${BACKEND_HOST}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.backend-secure.tls=true"
+      - "traefik.http.routers.backend-secure.entrypoints=websecure"
+      - "traefik.http.routers.backend-secure.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+      - "traefik.http.services.backend.loadbalancer.server.port=4000"
+    networks:
+      - traefik
+      - default
+
+  admin-frontend:
+    build: ./admin-frontend
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik_default}"
+      - "traefik.http.routers.admin.rule=Host(`${ADMIN_HOST:?set in .env}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.admin.entrypoints=web"
+      - "traefik.http.middlewares.admin-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.admin.middlewares=admin-https-redirect"
+      - "traefik.http.routers.admin-secure.rule=Host(`${ADMIN_HOST}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.admin-secure.tls=true"
+      - "traefik.http.routers.admin-secure.entrypoints=websecure"
+      - "traefik.http.routers.admin-secure.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+      - "traefik.http.services.admin.loadbalancer.server.port=80"
+    networks:
+      - traefik
+      - default
+
+  exotel-service:
+    build: ./exotel-service
+    restart: unless-stopped
+    ports:
+      - "3100:3000"  # Exotel API
+    environment:
+      - PORT=3000
+      # Jupiter - Brain (LLM/NLU)
+      - JUPITER_URL=http://192.168.0.156:3200
+      - JUPITER_LLM_URL=http://192.168.0.156:8002
+      - JUPITER_NLU_URL=http://192.168.0.156:7010
+      # Mercury - Voice Services (v2 stack)
+      - ASR_WS_URL=ws://192.168.0.151:7000/ws/voice
+      - ASR_HTTP_URL=http://192.168.0.151:7001
+      - TTS_URL=http://192.168.0.151:7002
+      - VOICE_AGENT_URL=http://192.168.0.151:7000
+      - VOICE_AGENT_WS_URL=ws://192.168.0.151:7000/ws/voice
+      # PHP Backend
+      - PHP_BACKEND_URL=https://www.mangwale.com
+      - MQ_BROKER_URL=amqp://${RABBITMQ_USER:-mangwale}:${RABBITMQ_PASS:-mangwale}@rabbitmq:5672
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - UI_PASSWORD=${UI_PASSWORD}
+      - EXOTEL_API_KEY=${EXOTEL_API_KEY}
+      - EXOTEL_API_TOKEN=${EXOTEL_API_TOKEN}
+      - EXOTEL_SID=${EXOTEL_SID}
+      - EXOTEL_SUBDOMAIN=${EXOTEL_SUBDOMAIN:-api}
+      - EXOTEL_REGION=${EXOTEL_REGION}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik_default}"
+      # Main exotel routes
+      - "traefik.http.routers.exotel.rule=Host(`${EXOTEL_HOST:?set in .env}`) && (PathPrefix(`/exotel`) || PathPrefix(`/api/voice`) || PathPrefix(`/health`))"
+      - "traefik.http.routers.exotel.entrypoints=web"
+      - "traefik.http.middlewares.exotel-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.exotel.middlewares=exotel-https-redirect"
+      - "traefik.http.routers.exotel-secure.rule=Host(`${EXOTEL_HOST}`) && (PathPrefix(`/exotel`) || PathPrefix(`/api/voice`) || PathPrefix(`/health`))"
+      - "traefik.http.routers.exotel-secure.tls=true"
+      - "traefik.http.routers.exotel-secure.entrypoints=websecure"
+      - "traefik.http.routers.exotel-secure.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+      - "traefik.http.services.exotel.loadbalancer.server.port=3000"
+    networks:
+      - traefik
+      - default
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  exotel-ui:
+    build: ./exotel-ui
+    restart: unless-stopped
+    ports:
+      - "3101:80"  # Exotel UI
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=${TRAEFIK_NETWORK:-traefik_default}"
+      - "traefik.http.routers.exotel-ui.rule=Host(`${EXOTEL_HOST:?set in .env}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.exotel-ui.entrypoints=web"
+      - "traefik.http.middlewares.exotel-ui-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.exotel-ui.middlewares=exotel-ui-https-redirect"
+      - "traefik.http.routers.exotel-ui-secure.rule=Host(`${EXOTEL_HOST}`) && PathPrefix(`/`)"
+      - "traefik.http.routers.exotel-ui-secure.tls=true"
+      - "traefik.http.routers.exotel-ui-secure.entrypoints=websecure"
+      - "traefik.http.routers.exotel-ui-secure.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}"
+      - "traefik.http.services.exotel-ui.loadbalancer.server.port=80"
+    networks:
+      - traefik
+      - default

@@ -1,0 +1,144 @@
+# =============================================================================
+# Mangwale Voice Nerve System - Docker Compose
+# =============================================================================
+# Ultra-fast Exotel IVR orchestration for vendor/rider voice calls
+#
+# Architecture:
+#   Mercury (192.168.0.151) - Voice Layer:
+#     - nerve-system (7100) - Exotel IVR orchestrator (Python/FastAPI)
+#     - asr (7001) - Faster-Whisper ASR service
+#     - tts (7002) - TTS service (Indic-Parler / Kokoro)
+#     - existing exotel-js service (3100) - legacy JS service
+#
+#   Jupiter (192.168.0.156) - Brain Layer:
+#     - NestJS Backend (3200) - Database, business logic
+#     - vLLM (8002) - LLM inference
+#
+# Quick Start:
+#   cd /home/ubuntu/mangwale-voice/escotel-stack
+#   docker-compose -f docker-compose-nerve.yml up -d
+#
+# Test:
+#   curl http://localhost:7100/health
+#   curl http://localhost:7100/info
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # ===========================================================================
+  # NERVE SYSTEM - Python/FastAPI Exotel IVR Orchestrator
+  # ===========================================================================
+  nerve-system:
+    build:
+      context: ./exotel-service
+      dockerfile: Dockerfile.nerve
+    container_name: nerve-system
+    ports:
+      - "7100:7100"
+    environment:
+      - DEBUG_MODE=false
+      - ASR_URL=http://asr:7001
+      - TTS_URL=http://tts:7002
+      - JUPITER_URL=http://192.168.0.156:3200
+      - EXOTEL_CALLBACK_URL=https://exotel.mangwale.ai
+      - EXOTEL_SID=${EXOTEL_SID:-sarvinsuppliesllp1}
+      - EXOTEL_API_KEY=${EXOTEL_API_KEY}
+      - EXOTEL_API_TOKEN=${EXOTEL_API_TOKEN}
+      - EXOTEL_CALLER_ID=${EXOTEL_CALLER_ID:-02048556923}
+    restart: unless-stopped
+    networks:
+      - voice-network
+    depends_on:
+      - tts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================================================
+  # ASR SERVICE - Faster-Whisper
+  # ===========================================================================
+  asr:
+    build:
+      context: ../faster-whisper-asr
+      dockerfile: Dockerfile
+    container_name: asr-service
+    ports:
+      - "7001:7001"
+    environment:
+      - MODEL_SIZE=large-v3
+      - DEVICE=cuda
+      - COMPUTE_TYPE=float16
+    volumes:
+      - ../models/whisper:/root/.cache/huggingface
+    restart: unless-stopped
+    networks:
+      - voice-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================================================
+  # TTS SERVICE - Indic-Parler / Kokoro
+  # ===========================================================================
+  tts:
+    build:
+      context: ../indic-parler-tts
+      dockerfile: Dockerfile
+    container_name: tts-service
+    ports:
+      - "7002:7002"
+    environment:
+      - DEVICE=cuda
+      - MODEL_NAME=ai4bharat/indic-parler-tts
+    volumes:
+      - ../models/indic-parler:/root/.cache/huggingface
+    restart: unless-stopped
+    networks:
+      - voice-network
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ===========================================================================
+  # EXISTING EXOTEL JS SERVICE (Legacy - will migrate to Nerve)
+  # ===========================================================================
+  exotel-js:
+    build:
+      context: ./exotel-service
+      dockerfile: Dockerfile
+    container_name: exotel-js
+    ports:
+      - "3100:3000"
+    environment:
+      - NODE_ENV=production
+      - EXOTEL_SID=${EXOTEL_SID}
+      - EXOTEL_API_KEY=${EXOTEL_API_KEY}
+      - EXOTEL_API_TOKEN=${EXOTEL_API_TOKEN}
+    restart: unless-stopped
+    networks:
+      - voice-network
+
+networks:
+  voice-network:
+    driver: bridge

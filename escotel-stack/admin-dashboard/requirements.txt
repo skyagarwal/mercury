@@ -1,0 +1,17 @@
+# Mangwale Admin Dashboard - Dependencies
+
+# Core Framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# HTTP Client
+httpx>=0.26.0
+
+# Data Validation
+pydantic>=2.5.0
+
+# WebSockets
+websockets>=12.0
+
+# Utilities
+python-dotenv>=1.0.0

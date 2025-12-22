@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mangwale Voice Agent</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #10b981;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        .logo h1 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            background: var(--bg-dark);
+            border-radius: 9999px;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--danger);
+        }
+
+        .status-dot.connected {
+            background: var(--secondary);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            padding: 2rem;
+            gap: 2rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .sidebar {
+            width: 300px;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+
+        .card h3 {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        .config-group {
+            margin-bottom: 1rem;
+        }
+
+        .config-group label {
+            display: block;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        select, input, textarea {
+            width: 100%;
+            padding: 0.75rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-size: 0.875rem;
+        }
+
+        select:focus, input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .message {
+            max-width: 80%;
+            padding: 1rem;
+            border-radius: 12px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.user {
+            background: var(--primary);
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+
+        .message.assistant {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.system {
+            background: transparent;
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            align-self: center;
+            padding: 0.5rem;
+        }
+
+        .message-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+        }
+
+        .input-area {
+            padding: 1rem;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .voice-btn {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: none;
+            background: var(--primary);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            transition: all 0.2s;
+        }
+
+        .voice-btn:hover {
+            background: var(--primary-dark);
+            transform: scale(1.05);
+        }
+
+        .voice-btn.recording {
+            background: var(--danger);
+            animation: pulse-recording 1s infinite;
+        }
+
+        @keyframes pulse-recording {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+            50% { box-shadow: 0 0 0 20px rgba(239, 68, 68, 0); }
+        }
+
+        .voice-btn.speaking {
+            background: var(--secondary);
+        }
+
+        .text-input {
+            flex: 1;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .text-input input {
+            flex: 1;
+        }
+
+        .send-btn {
+            padding: 0.75rem 1.5rem;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .send-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .visualizer {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .visualizer-bar {
+            width: 4px;
+            background: var(--primary);
+            border-radius: 2px;
+            transition: height 0.1s;
+        }
+
+        .tools-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .tool-badge {
+            padding: 0.25rem 0.75rem;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tool-badge.active {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .tool-badge:hover {
+            border-color: var(--primary);
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        .metric {
+            text-align: center;
+            padding: 0.75rem;
+            background: var(--bg-dark);
+            border-radius: 8px;
+        }
+
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">
+            <div class="logo-icon">🎙️</div>
+            <h1>Mangwale Voice Agent</h1>
+        </div>
+        <div class="status-badge">
+            <div class="status-dot" id="status-dot"></div>
+            <span id="status-text">Disconnected</span>
+        </div>
+    </header>
+
+    <main class="main">
+        <aside class="sidebar">
+            <div class="card">
+                <h3>Configuration</h3>
+                <div class="config-group">
+                    <label>Voice</label>
+                    <select id="voice-select">
+                        <option value="tara">Tara (Female, Warm)</option>
+                        <option value="leah">Leah (Female, Professional)</option>
+                        <option value="jess">Jess (Female, Energetic)</option>
+                        <option value="leo">Leo (Male, Calm)</option>
+                        <option value="dan">Dan (Male, Friendly)</option>
+                        <option value="mia">Mia (Female, Soft)</option>
+                        <option value="zac">Zac (Male, Dynamic)</option>
+                        <option value="zoe">Zoe (Female, Bright)</option>
+                    </select>
+                </div>
+                <div class="config-group">
+                    <label>Language</label>
+                    <select id="language-select">
+                        <option value="en">English</option>
+                        <option value="hi">Hindi</option>
+                    </select>
+                </div>
+                <div class="config-group">
+                    <label>System Prompt</label>
+                    <textarea id="system-prompt">You are a helpful voice assistant. Keep responses concise and conversational. Be friendly and professional.</textarea>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Tools</h3>
+                <div class="tools-list" id="tools-list">
+                    <span class="tool-badge active" data-tool="get_current_time">⏰ Time</span>
+                    <span class="tool-badge active" data-tool="get_weather">🌤️ Weather</span>
+                    <span class="tool-badge" data-tool="book_appointment">📅 Booking</span>
+                    <span class="tool-badge" data-tool="end_call">📞 End Call</span>
+                    <span class="tool-badge" data-tool="transfer_call">🔀 Transfer</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Metrics</h3>
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="metric-value" id="metric-latency">--</div>
+                        <div class="metric-label">Latency (ms)</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="metric-turns">0</div>
+                        <div class="metric-label">Turns</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="metric-duration">0:00</div>
+                        <div class="metric-label">Duration</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-value" id="metric-tokens">0</div>
+                        <div class="metric-label">Tokens</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <section class="chat-area card">
+            <div class="messages" id="messages">
+                <div class="message system">
+                    Click the microphone button or type a message to start
+                </div>
+            </div>
+
+            <div class="visualizer" id="visualizer" style="display: none;">
+                <!-- Audio visualizer bars will be added here -->
+            </div>
+
+            <div class="input-area">
+                <button class="voice-btn" id="voice-btn" title="Hold to talk">
+                    🎤
+                </button>
+                <div class="text-input">
+                    <input type="text" id="text-input" placeholder="Type a message..." />
+                    <button class="send-btn" id="send-btn">Send</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // Configuration
+        const GATEWAY_URL = window.location.hostname === 'localhost' 
+            ? 'ws://localhost:8090/ws/voice'
+            : `ws://${window.location.hostname}:8090/ws/voice`;
+        const AGENT_API = window.location.hostname === 'localhost'
+            ? 'http://localhost:8090'
+            : `http://${window.location.hostname}:8090`;
+
+        // State
+        let ws = null;
+        let sessionId = null;
+        let isRecording = false;
+        let mediaRecorder = null;
+        let audioContext = null;
+        let audioChunks = [];
+        let turns = 0;
+        let startTime = null;
+
+        // DOM Elements
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const messages = document.getElementById('messages');
+        const voiceBtn = document.getElementById('voice-btn');
+        const textInput = document.getElementById('text-input');
+        const sendBtn = document.getElementById('send-btn');
+        const visualizer = document.getElementById('visualizer');
+        const voiceSelect = document.getElementById('voice-select');
+        const languageSelect = document.getElementById('language-select');
+        const systemPrompt = document.getElementById('system-prompt');
+        const toolsList = document.getElementById('tools-list');
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupVisualizer();
+            setupTools();
+            connectWebSocket();
+        });
+
+        function setupVisualizer() {
+            for (let i = 0; i < 20; i++) {
+                const bar = document.createElement('div');
+                bar.className = 'visualizer-bar';
+                bar.style.height = '4px';
+                visualizer.appendChild(bar);
+            }
+        }
+
+        function setupTools() {
+            toolsList.querySelectorAll('.tool-badge').forEach(badge => {
+                badge.addEventListener('click', () => {
+                    badge.classList.toggle('active');
+                });
+            });
+        }
+
+        function getEnabledTools() {
+            return Array.from(toolsList.querySelectorAll('.tool-badge.active'))
+                .map(badge => badge.dataset.tool);
+        }
+
+        async function connectWebSocket() {
+            try {
+                // First create a session
+                const response = await fetch(`${AGENT_API}/api/sessions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        system_prompt: systemPrompt.value,
+                        voice: voiceSelect.value,
+                        language: languageSelect.value,
+                        tools: getEnabledTools()
+                    })
+                });
+
+                const session = await response.json();
+                sessionId = session.session_id;
+                console.log('Session created:', sessionId);
+
+                // Connect WebSocket
+                ws = new WebSocket(`${GATEWAY_URL}/${sessionId}`);
+
+                ws.onopen = () => {
+                    statusDot.classList.add('connected');
+                    statusText.textContent = 'Connected';
+                    startTime = Date.now();
+                    updateDuration();
+                };
+
+                ws.onclose = () => {
+                    statusDot.classList.remove('connected');
+                    statusText.textContent = 'Disconnected';
+                    setTimeout(connectWebSocket, 3000);
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                };
+
+                ws.onmessage = (event) => {
+                    if (event.data instanceof Blob) {
+                        // Audio data
+                        playAudio(event.data);
+                    } else {
+                        // JSON message
+                        const data = JSON.parse(event.data);
+                        handleMessage(data);
+                    }
+                };
+
+            } catch (error) {
+                console.error('Connection error:', error);
+                statusText.textContent = 'Error';
+                setTimeout(connectWebSocket, 5000);
+            }
+        }
+
+        function handleMessage(data) {
+            if (data.type === 'transcription') {
+                addMessage('user', data.text);
+                turns++;
+                document.getElementById('metric-turns').textContent = turns;
+            } else if (data.type === 'response') {
+                addMessage('assistant', data.text);
+                if (data.latency) {
+                    document.getElementById('metric-latency').textContent = data.latency;
+                }
+            } else if (data.status === 'turn_complete') {
+                voiceBtn.classList.remove('speaking');
+                voiceBtn.textContent = '🎤';
+            }
+        }
+
+        function addMessage(role, content) {
+            const div = document.createElement('div');
+            div.className = `message ${role}`;
+            div.innerHTML = `
+                ${content}
+                <div class="message-meta">${new Date().toLocaleTimeString()}</div>
+            `;
+            messages.appendChild(div);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        // Voice recording
+        voiceBtn.addEventListener('mousedown', startRecording);
+        voiceBtn.addEventListener('mouseup', stopRecording);
+        voiceBtn.addEventListener('touchstart', startRecording);
+        voiceBtn.addEventListener('touchend', stopRecording);
+
+        async function startRecording() {
+            if (isRecording) return;
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioContext = new AudioContext();
+                
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.start(100); // Collect chunks every 100ms
+                isRecording = true;
+                voiceBtn.classList.add('recording');
+                voiceBtn.textContent = '🔴';
+                visualizer.style.display = 'flex';
+
+                // Start visualizer
+                const analyser = audioContext.createAnalyser();
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyser.fftSize = 64;
+                
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+                const bars = visualizer.querySelectorAll('.visualizer-bar');
+
+                function updateVisualizer() {
+                    if (!isRecording) return;
+                    analyser.getByteFrequencyData(dataArray);
+                    bars.forEach((bar, i) => {
+                        const value = dataArray[i] || 0;
+                        bar.style.height = `${Math.max(4, value / 4)}px`;
+                    });
+                    requestAnimationFrame(updateVisualizer);
+                }
+                updateVisualizer();
+
+            } catch (error) {
+                console.error('Microphone error:', error);
+                alert('Could not access microphone. Please check permissions.');
+            }
+        }
+
+        async function stopRecording() {
+            if (!isRecording) return;
+
+            isRecording = false;
+            voiceBtn.classList.remove('recording');
+            voiceBtn.classList.add('speaking');
+            voiceBtn.textContent = '🔊';
+            visualizer.style.display = 'none';
+
+            mediaRecorder.stop();
+            
+            mediaRecorder.onstop = async () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                
+                // Send audio to WebSocket
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(audioBlob);
+                    ws.send(JSON.stringify({ type: 'end_turn' }));
+                }
+
+                // Stop tracks
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+            };
+        }
+
+        // Text input
+        sendBtn.addEventListener('click', sendText);
+        textInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendText();
+        });
+
+        async function sendText() {
+            const text = textInput.value.trim();
+            if (!text) return;
+
+            textInput.value = '';
+            addMessage('user', text);
+            turns++;
+            document.getElementById('metric-turns').textContent = turns;
+
+            try {
+                const response = await fetch(`${AGENT_API}/api/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: sessionId,
+                        messages: [{ role: 'user', content: text }]
+                    })
+                });
+
+                const data = await response.json();
+                addMessage('assistant', data.response);
+
+            } catch (error) {
+                console.error('Chat error:', error);
+                addMessage('system', 'Error sending message');
+            }
+        }
+
+        // Play audio
+        async function playAudio(blob) {
+            const arrayBuffer = await blob.arrayBuffer();
+            const audioContext = new AudioContext();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            source.start();
+        }
+
+        // Update duration
+        function updateDuration() {
+            if (!startTime) return;
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const mins = Math.floor(elapsed / 60);
+            const secs = elapsed % 60;
+            document.getElementById('metric-duration').textContent = 
+                `${mins}:${secs.toString().padStart(2, '0')}`;
+            setTimeout(updateDuration, 1000);
+        }
+    </script>
+</body>
+</html>

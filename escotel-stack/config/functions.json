@@ -1,0 +1,305 @@
+{
+  "functions": [
+    {
+      "name": "confirm_order",
+      "description": "Confirm an order with the vendor. Use when vendor accepts or provides preparation time.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "The unique order identifier"
+          },
+          "accepted": {
+            "type": "boolean",
+            "description": "Whether the order is accepted by the vendor"
+          },
+          "prep_time_minutes": {
+            "type": "integer",
+            "description": "Estimated preparation time in minutes",
+            "minimum": 5,
+            "maximum": 120
+          },
+          "notes": {
+            "type": "string",
+            "description": "Additional notes from the vendor"
+          }
+        },
+        "required": ["order_id", "accepted"]
+      },
+      "endpoint": "/api/orders/{order_id}/confirm",
+      "method": "POST"
+    },
+    {
+      "name": "reject_order",
+      "description": "Reject an order. Use when vendor cannot fulfill the order.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "The unique order identifier"
+          },
+          "reason": {
+            "type": "string",
+            "enum": ["out_of_stock", "closing_soon", "too_busy", "item_unavailable", "other"],
+            "description": "Reason for rejection"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Additional explanation"
+          }
+        },
+        "required": ["order_id", "reason"]
+      },
+      "endpoint": "/api/orders/{order_id}/reject",
+      "method": "POST"
+    },
+    {
+      "name": "assign_delivery",
+      "description": "Assign a delivery to a rider. Use when rider accepts or provides ETA.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "delivery_id": {
+            "type": "string",
+            "description": "The unique delivery identifier"
+          },
+          "rider_id": {
+            "type": "string",
+            "description": "The rider's identifier"
+          },
+          "accepted": {
+            "type": "boolean",
+            "description": "Whether the rider accepts the delivery"
+          },
+          "eta_minutes": {
+            "type": "integer",
+            "description": "Estimated time of arrival in minutes"
+          }
+        },
+        "required": ["delivery_id", "accepted"]
+      },
+      "endpoint": "/api/deliveries/{delivery_id}/assign",
+      "method": "POST"
+    },
+    {
+      "name": "get_order_status",
+      "description": "Get the current status of an order. Use when customer asks about order status.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "The unique order identifier"
+          }
+        },
+        "required": ["order_id"]
+      },
+      "endpoint": "/api/orders/{order_id}/status",
+      "method": "GET"
+    },
+    {
+      "name": "get_rider_location",
+      "description": "Get the current location of a delivery rider.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "rider_id": {
+            "type": "string",
+            "description": "The rider's identifier"
+          },
+          "delivery_id": {
+            "type": "string",
+            "description": "The delivery identifier for context"
+          }
+        },
+        "required": ["delivery_id"]
+      },
+      "endpoint": "/api/riders/location",
+      "method": "GET"
+    },
+    {
+      "name": "update_delivery_status",
+      "description": "Update delivery status. Use when rider picks up or delivers order.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "delivery_id": {
+            "type": "string",
+            "description": "The unique delivery identifier"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["picked_up", "on_the_way", "arrived", "delivered", "failed"],
+            "description": "New delivery status"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Additional notes"
+          }
+        },
+        "required": ["delivery_id", "status"]
+      },
+      "endpoint": "/api/deliveries/{delivery_id}/status",
+      "method": "PUT"
+    },
+    {
+      "name": "create_support_ticket",
+      "description": "Create a support ticket for issues that need human attention.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "description": "Related order ID if applicable"
+          },
+          "issue_type": {
+            "type": "string",
+            "enum": ["payment", "quality", "delivery", "vendor", "other"],
+            "description": "Type of issue"
+          },
+          "description": {
+            "type": "string",
+            "description": "Description of the issue"
+          },
+          "priority": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "urgent"],
+            "description": "Priority level"
+          }
+        },
+        "required": ["issue_type", "description"]
+      },
+      "endpoint": "/api/support/tickets",
+      "method": "POST"
+    },
+    {
+      "name": "get_vendor_menu",
+      "description": "Get the menu or available items for a vendor.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "vendor_id": {
+            "type": "string",
+            "description": "The vendor's identifier"
+          },
+          "category": {
+            "type": "string",
+            "description": "Filter by category"
+          }
+        },
+        "required": ["vendor_id"]
+      },
+      "endpoint": "/api/vendors/{vendor_id}/menu",
+      "method": "GET"
+    },
+    {
+      "name": "transfer_to_human",
+      "description": "Transfer the call to a human agent. Use when the AI cannot handle the request.",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "description": "Reason for transfer"
+          },
+          "department": {
+            "type": "string",
+            "enum": ["support", "sales", "operations", "escalation"],
+            "description": "Department to transfer to"
+          },
+          "context": {
+            "type": "string",
+            "description": "Conversation context for the human agent"
+          }
+        },
+        "required": ["reason"]
+      },
+      "endpoint": "/api/calls/transfer",
+      "method": "POST"
+    }
+  ],
+  "intents": [
+    {
+      "name": "greeting",
+      "examples": {
+        "hi": ["नमस्ते", "हैलो", "हाय"],
+        "en": ["hello", "hi", "hey"],
+        "mr": ["नमस्कार", "हॅलो"]
+      }
+    },
+    {
+      "name": "order_status",
+      "examples": {
+        "hi": ["ऑर्डर कहाँ है", "मेरा ऑर्डर कहाँ पहुँचा", "स्टेटस बताओ"],
+        "en": ["where is my order", "order status", "track my order"],
+        "mr": ["ऑर्डर कुठे आहे", "माझा ऑर्डर"]
+      }
+    },
+    {
+      "name": "confirm_yes",
+      "examples": {
+        "hi": ["हाँ", "ठीक है", "कन्फर्म है", "स्वीकार है"],
+        "en": ["yes", "okay", "confirm", "accept"],
+        "mr": ["हो", "ठीक आहे"]
+      }
+    },
+    {
+      "name": "confirm_no",
+      "examples": {
+        "hi": ["नहीं", "कैंसल करो", "रद्द करो"],
+        "en": ["no", "cancel", "reject"],
+        "mr": ["नाही", "रद्द करा"]
+      }
+    },
+    {
+      "name": "help",
+      "examples": {
+        "hi": ["मदद चाहिए", "हेल्प", "क्या कर सकते हो"],
+        "en": ["help", "what can you do", "assist me"],
+        "mr": ["मदत हवी आहे"]
+      }
+    },
+    {
+      "name": "complaint",
+      "examples": {
+        "hi": ["शिकायत है", "प्रॉब्लम है", "खराब था"],
+        "en": ["complaint", "problem", "issue"],
+        "mr": ["तक्रार आहे"]
+      }
+    }
+  ],
+  "voice_prompts": {
+    "welcome": {
+      "hi": "नमस्ते, मंगवाले में आपका स्वागत है। मैं आपकी कैसे मदद कर सकता हूँ?",
+      "en": "Hello, welcome to Mangwale. How can I help you today?",
+      "mr": "नमस्कार, मंगवाले मध्ये आपले स्वागत आहे. मी तुम्हाला कशी मदत करू शकतो?"
+    },
+    "order_confirm_vendor": {
+      "hi": "नमस्ते, मंगवाले से बोल रहा हूँ। आपके पास एक नया ऑर्डर है। क्या आप इसे स्वीकार करेंगे?",
+      "en": "Hello, this is Mangwale calling. You have a new order. Would you like to accept it?",
+      "mr": "नमस्कार, मंगवाले बोलत आहे. तुमच्याकडे एक नवीन ऑर्डर आहे. तुम्ही स्वीकार कराल का?"
+    },
+    "delivery_assign_rider": {
+      "hi": "नमस्ते, मंगवाले से बोल रहा हूँ। आपके लिए एक डिलीवरी है। क्या आप ले सकते हैं?",
+      "en": "Hello, this is Mangwale. There's a delivery for you. Can you pick it up?",
+      "mr": "नमस्कार, मंगवाले बोलत आहे. तुमच्यासाठी एक डिलिव्हरी आहे. घेऊ शकता का?"
+    },
+    "goodbye": {
+      "hi": "धन्यवाद, शुभ दिन!",
+      "en": "Thank you, have a great day!",
+      "mr": "धन्यवाद, शुभ दिवस!"
+    },
+    "error": {
+      "hi": "माफ कीजिए, कुछ समस्या हो गई। कृपया दोबारा कोशिश करें।",
+      "en": "Sorry, something went wrong. Please try again.",
+      "mr": "माफ करा, काहीतरी चूक झाली. कृपया पुन्हा प्रयत्न करा."
+    },
+    "transfer_to_human": {
+      "hi": "मैं आपको हमारी टीम से जोड़ रहा हूँ। कृपया प्रतीक्षा करें।",
+      "en": "I'm connecting you to our team. Please hold on.",
+      "mr": "मी तुम्हाला आमच्या टीमशी जोडत आहे. कृपया थांबा."
+    }
+  }
+}

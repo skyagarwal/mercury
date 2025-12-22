@@ -1,0 +1,55 @@
+--- a/src/voice-characters/voice-characters.service.ts
++++ b/src/voice-characters/voice-characters.service.ts
+@@ -376,6 +376,51 @@
+     }
+   }
+ 
++  // ==================== Persona Generation ====================
++  
++  /**
++   * Generate system prompt for a character persona
++   * Used by AgentOrchestrator to inject personality into chatbot
++   */
++  async generateSystemPromptForCharacter(characterName: string): Promise<string> {
++    try {
++      const character = await this.findCharacterByName(characterName);
++      
++      if (!character || !character.isActive) {
++        this.logger.warn(`Character "${characterName}" not found or inactive`);
++        return ''; // Return empty string to use default system prompt
++      }
++      
++      const personality = character.personality as any;
++      const background = personality?.background || '';
++      const style = personality?.style || '';
++      const traits = character.traits || [];
++      
++      // Build persona prompt
++      const personaPrompt = `You are ${character.displayName} - ${character.description}
++
++CHARACTER BACKGROUND:
++${background}
++
++COMMUNICATION STYLE:
++${style}
++
++PERSONALITY TRAITS:
++${traits.map(t => `- ${t}`).join('\n')}
++
++IMPORTANT GUIDELINES:
++- Embody this character's personality in all your responses
++- Use the communication style that matches this character
++- Stay in character while being helpful and accurate
++- Balance personality with professionalism
++`;
++      
++      return personaPrompt;
++    } catch (error) {
++      this.logger.error(`Failed to generate persona: ${error.message}`);
++      return '';
++    }
++  }
++
+   // ==================== Analytics ====================
+ 
+   async getUsageStats(characterId?: string, days = 7) {

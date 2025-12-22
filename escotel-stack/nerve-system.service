@@ -1,0 +1,30 @@
+[Unit]
+Description=Mangwale Voice Nerve System - Exotel IVR Orchestrator
+After=network.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/mangwale-voice/escotel-stack/exotel-service
+Environment=PATH=/home/ubuntu/mangwale-voice/escotel-stack/exotel-service/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=DEBUG_MODE=false
+Environment=ASR_URL=http://localhost:7001
+Environment=TTS_URL=http://localhost:7002
+Environment=JUPITER_URL=http://192.168.0.156:3200
+Environment=EXOTEL_CALLBACK_URL=https://exotel.mangwale.ai
+Environment=EXOTEL_SID=sarvinsuppliesllp1
+Environment=EXOTEL_CALLER_ID=02048556923
+
+# Load secrets from environment file
+EnvironmentFile=-/home/ubuntu/mangwale-voice/escotel-stack/.env
+
+ExecStart=/home/ubuntu/mangwale-voice/escotel-stack/exotel-service/.venv/bin/python nerve_system.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/mangwale-voice/logs/nerve-system.log
+StandardError=append:/home/ubuntu/mangwale-voice/logs/nerve-system.error.log
+
+[Install]
+WantedBy=multi-user.target
