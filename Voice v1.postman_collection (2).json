@@ -1,0 +1,467 @@
+{
+	"info": {
+		"_postman_id": "d67dbd2a-5344-4781-b64e-0f05cf3bdf3d",
+		"name": "Voice v1",
+		"description": "[![Run in Postman](https://run.pstmn.io/button.svg)](https://god.gw.postman.com/run-collection/22379282-d67dbd2a-5344-4781-b64e-0f05cf3bdf3d?action=collection%2Ffork&collection-url=entityId%3D22379282-d67dbd2a-5344-4781-b64e-0f05cf3bdf3d%26entityType%3Dcollection%26workspaceId%3Db490bd7c-d3d6-4ee6-b9a6-8b4937d4d820#?env%5BExotel%20SMS%20SGP%5D=W3sia2V5IjoiQXV0aEtleSIsInZhbHVlIjoiPHJlcGxhY2UgdGhpcyB3aXRoIHlvdXIgYXV0aCBrZXk+IiwiZW5hYmxlZCI6dHJ1ZSwic2Vzc2lvblZhbHVlIjoiPHJlcGxhY2UgdGhpcyB3aXRoIHlvdXIgYXV0aCBrZXk+Iiwic2Vzc2lvbkluZGV4IjowfSx7ImtleSI6IkF1dGhUb2tlbiIsInZhbHVlIjoiPHJlcGxhY2UgdGhpcyB3aXRoIHlvdXIgYXV0aCB0b2tlbj4iLCJlbmFibGVkIjp0cnVlLCJzZXNzaW9uVmFsdWUiOiI8cmVwbGFjZSB0aGlzIHdpdGggeW91ciBhdXRoIHRva2VuPiIsInNlc3Npb25JbmRleCI6MX0seyJrZXkiOiJTdWJEb21haW4iLCJ2YWx1ZSI6IjxyZXBsYWNlIHRoaXMgd2l0aCB0aGUgYmFzZSBVUkw+IiwiZW5hYmxlZCI6dHJ1ZSwic2Vzc2lvblZhbHVlIjoiPHJlcGxhY2UgdGhpcyB3aXRoIHRoZSBiYXNlIFVSTD4iLCJzZXNzaW9uSW5kZXgiOjJ9LHsia2V5IjoiQWNjb3VudFNpZCIsInZhbHVlIjoiPHJlcGxhY2UgdGhpcyB3aXRoIHlvdXIgYWNjb3VudCBTSUQ+IiwiZW5hYmxlZCI6dHJ1ZSwic2Vzc2lvblZhbHVlIjoiPHJlcGxhY2UgdGhpcyB3aXRoIHlvdXIgYWNjb3VudCBTSUQ+Iiwic2Vzc2lvbkluZGV4IjozfV0=)",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "43040121",
+		"_collection_link": "https://www.postman.com/universal-star-324650/exotel-apis/collection/jmh3v5u/voice-v1?action=share&source=collection_link&creator=43040121"
+	},
+	"item": [
+		{
+			"name": "Outgoing call to connect two numbers",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "{{AuthToken}}",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "{{AuthKey}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "From",
+							"value": "<replace with number to be dialled first>",
+							"contentType": "",
+							"description": "\t[Mandatory] String; The phone number that will be called first. Preferably in E.164 format. If not set, our system will try to match it with a country and make a call. If landline number, prefix it with STD code; Ex: 080XXXX2400",
+							"type": "text"
+						},
+						{
+							"key": "To",
+							"value": "<replace with number to be dialled second>",
+							"description": "[Mandatory] String; Your customer's phone number. If landline number, prefix it with STD code; Ex: 080XXXX2400",
+							"type": "text"
+						},
+						{
+							"key": "CallerId",
+							"value": "<replace with caller ID>",
+							"description": "[Mandatory] String; This is your ExoPhone/Exotel Virtual Number",
+							"type": "text"
+						},
+						{
+							"key": "CallType",
+							"value": "<replace with Call Type>",
+							"description": "[Optional] String; trans - for Transactional Calls",
+							"type": "text"
+						},
+						{
+							"key": "TimeLimit",
+							"value": "<replace with time limit of call>",
+							"contentType": "",
+							"description": "[Optional] Integer; The time limit (in seconds) that you want this call to last. The call will be cut after this time (max. 14400 i.e. 4 hours)",
+							"type": "text"
+						},
+						{
+							"key": "WaitUrl",
+							"value": "<replace with wait URL>",
+							"description": "[Optional] String; Play this audio to the caller. When the first leg (From) has to wait for the other leg (To) to pick up the call, the audio file specified in this parameter will be played.\n\nPlease refer this article to understand the format specifications of the audio file to be played (wav is only supported).\n\nGuidelines on usage:\n\nThe audio file size is recommended to be less than 2MB. Please note, Exotel will cache the wav file. During the first few call attempts of setting this parameter, user might hear normal ringing tone for first 5 seconds (for a ~2MB file). This is only temporary for initial few calls and once the audio file is cached, audio will be played out smoothly.\nIn case you decide to change the audio file later, the WaitUrl should be different (as Exotel will cache audio file based on URL). You can do so by hosting the audio file with a different name.\nWhen using this parameter, it is recommended to set the TimeOut parameter as well.\nExample: \"http://{your_hosted_endpoint}/{audio file name}.wav\"",
+							"type": "text"
+						},
+						{
+							"key": "Record",
+							"value": "<replace with true or false>",
+							"description": "[Optional] Boolean; Record the conversation of your call. The RecordingUrl will be sent to the StatusCallback URL if this is set to 'true' and the call conversation happens. Can be:\n\ntrue (default) - Call conversation will be recorded.\nfalse - Call conversation will not be recorded.",
+							"type": "text"
+						},
+						{
+							"key": "RecordingChannels",
+							"value": "<replace with single or dual>",
+							"description": "[Optional] String; Number of audio channels to be present in the final recording. This parameter works if Record is set to 'true'. Can be:\n\nsingle (default) - Record both legs of the call in a single channel of the recording file.\ndual - Record the caller and the callee into separate channels of the recording file.",
+							"type": "text"
+						},
+						{
+							"key": "RecordingFormat",
+							"value": "<replace with mp3 or mp3-hq>",
+							"description": "[Optional] String; Quality of the audio recording. This parameter works if Record is set to 'true'. Can be:\n\nmp3 (default) - Standard bitrate recording\nmp3-hq - Higher bitrate (32 kbps/channel )recording",
+							"type": "text"
+						},
+						{
+							"key": "CustomField",
+							"value": "<replace with custom field>",
+							"description": "[Optional] Any application specific value like order id that will be passed back as a parameter in StatusCallback (only via 'terminal' StatusCallbackEvent)",
+							"type": "text"
+						},
+						{
+							"key": "StartPlaybackToNew",
+							"value": "<replace with callee or both>",
+							"description": "[Optional] String; The party that should listen the playback at the start of the call. Audio to be listened by agent or both customer and agent just before the call gets connected. Can be:\n\nCallee (default) - Playback audio will be played to callee only.\nBoth - Playback audio will be played to both caller and callee.",
+							"type": "text"
+						},
+						{
+							"key": "StartPlaybackValue",
+							"value": "<replace with audio URL>",
+							"description": "[Optional] String; URL for the audio to be played just before the call gets connected.",
+							"type": "text"
+						},
+						{
+							"key": "StatusCallback",
+							"value": "<replace with status callback URL>",
+							"description": "[Optional] String; An HTTP POST request will be made to this URL depending on what events are subscribed using ‘StatusCallbackEvents’. Refer here for complete list of parameters which will be sent to your endpoint.",
+							"type": "text"
+						},
+						{
+							"key": "StatusCallbackEvents",
+							"value": "<replace with array of events>",
+							"description": "[Optional] Array; Call events for which we will send details to the URL as set in ‘StatusCallback’ parameter. Can be:\n\nterminal - This event will be triggered once the call is over.\nIf no event is specified, we will send the default parameters as specified here. Currently, only ‘terminal’ event is supported but more events could be added in future.",
+							"type": "text"
+						},
+						{
+							"key": "StatusCallbackContentType",
+							"value": "<replace with content type>",
+							"description": "[Optional] String; The HTTP header ‘Content-Type’ using which the StatusCallback webhook will be triggered to your URL. Can be:\n\nmultipart/form-data (default)\napplication/json",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://{{SubDomain}}/v1/Accounts/{{AccountSid}}/Calls/connect",
+					"protocol": "https",
+					"host": [
+						"{{SubDomain}}"
+					],
+					"path": [
+						"v1",
+						"Accounts",
+						"{{AccountSid}}",
+						"Calls",
+						"connect"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Outgoing call to connect number to a call flow",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "{{AuthToken}}",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "{{AuthKey}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "formdata",
+					"formdata": [
+						{
+							"key": "From",
+							"value": "<replace with number to be called first>",
+							"description": "[Mandatory] The phone number that will be called first. Preferably in E.164 format. If not set, our system will try to match it with a country and make a call. If landline number, prefix it with STD code; Ex: 0XXXXXX2400",
+							"type": "text"
+						},
+						{
+							"key": "CallerId",
+							"value": "<replace with your exophone>",
+							"description": "[Mandatory] This is your ExoPhone",
+							"type": "text"
+						},
+						{
+							"key": "Url",
+							"value": "<replace with app URL from dashboard>",
+							"description": "[Mandatory] http://my.exotel.com/{your_sid}/exoml/start_voice/{app_id} where app_id is the identiﬁer of the flow (or applet) that you want to connect to once the From number picks up the call. You can get the app_id from your Exotel Dashboard",
+							"type": "text"
+						},
+						{
+							"key": "CallType",
+							"value": "<replace with call type>",
+							"description": "[Optional] trans - for Transactional Calls",
+							"type": "text"
+						},
+						{
+							"key": "TimeLimit",
+							"value": "<replace with time limit in seconds>",
+							"description": "[Optional] The time limit (in seconds) that you want this call to last. The call will be cut after this time (max. 14400 i.e. 4 hours)",
+							"type": "text"
+						},
+						{
+							"key": "TimeOut",
+							"value": "<replace with time out in seconds>",
+							"description": "[Optional] The time (in seconds) to ring the called parties (both first and second call leg)",
+							"type": "text"
+						},
+						{
+							"key": "StatusCallback",
+							"value": "<replace with status callback URL>",
+							"description": "[Optional] When the call completes, an HTTP POST will be made to the provided URL with the following four parameters:\n\nCallSid - an alpha-numeric unique identifier\nStatus - one of: completed, failed, busy, no-answer\nRecordingUrl - link to the call recording (if it exists)\nDateUpdated - time when the call state was updated last",
+							"type": "text"
+						},
+						{
+							"key": "CustomField",
+							"value": "<replace with custom field>",
+							"description": "[Optional] Any application specific value that will be passed back as a parameter while doing a GET request to the URL mentioned in your Passthru Applet or Greetings Applet.",
+							"type": "text"
+						}
+					]
+				},
+				"url": {
+					"raw": "https://{{SubDomain}}/v1/Accounts/{{AccountSid}}/Calls/connect",
+					"protocol": "https",
+					"host": [
+						"{{SubDomain}}"
+					],
+					"path": [
+						"v1",
+						"Accounts",
+						"{{AccountSid}}",
+						"Calls",
+						"connect"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Call Details",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "{{AuthToken}}",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "{{AuthKey}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://{{SubDomain}}/v1/Accounts/{{AccountSid}}/Calls/:callSid",
+					"protocol": "https",
+					"host": [
+						"{{SubDomain}}"
+					],
+					"path": [
+						"v1",
+						"Accounts",
+						"{{AccountSid}}",
+						"Calls",
+						":callSid"
+					],
+					"variable": [
+						{
+							"key": "callSid",
+							"value": null,
+							"description": "SID of the call whose details need to be gotten"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Bulk Call Details",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "{{AuthToken}}",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "{{AuthKey}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "https://{{SubDomain}}/v1/Accounts/{{AccountSid}}/Calls",
+					"protocol": "https",
+					"host": [
+						"{{SubDomain}}"
+					],
+					"path": [
+						"v1",
+						"Accounts",
+						"{{AccountSid}}",
+						"Calls"
+					],
+					"query": [
+						{
+							"key": "Sid",
+							"value": "<replace with Sid(s)>",
+							"description": "[Filter] string; an alpha-numeric unique identifier of the call\n\nOne or multiple Call SIDs which are comma separated. Recommended limit of SIDs which should be passed together is 20 and maximum allowed limit is 100. If DateCreated is not set, it will only check for last 31 days by default. While querying Sid(s) older than 31 days, DateCreated filter needs to be provided.\n\n \n\nExample:\n/Calls?Sid=48d690c837bb0c755a1228dcb6911416,d7d9cefd9773dd746d8f1e029cdb1417\n/Calls?Sid=48d690c837bb0c755a1228dcb6911416&DateCreated=gte:2019-01-01 00:00:00;lte:2019-01-31 23:59:59",
+							"disabled": true
+						},
+						{
+							"key": "DateCreated",
+							"value": "<replace with date range>",
+							"description": "[Filter] Date and time at which the Call resource was created in the Exotel system. Supported operators (gte and lte), for more info refer to filter operators section below. You can query call records only up to 6 months old and provide maximum date range of 1 month.\n\nDefault if not set: Last 31 days\n\nExample:\n/Calls?DateCreated=gte:2019-01-01 00:00:00;lte:2019-01-31 23:59:59\n",
+							"disabled": true
+						},
+						{
+							"key": "To",
+							"value": "<replace with your customer's number(s)>",
+							"description": "[Filter] Your customer's phone number. One or multiple To numbers can be provided (in E.164 format) which are comma separated. (max limit: 5)\n\nExample:\n/Calls?To=<number-1>\n/Calls?To=<number-1>,<number-2>\"",
+							"disabled": true
+						},
+						{
+							"key": "From",
+							"value": "<replace with phone number that gets called first>",
+							"description": "[Filter] The phone number that will be called first. One or multiple From numbers can be provided (in E.164 format) which are comma separated. (max limit: 5)\n\nExample:\n/Calls?From=<number-1>\n/Calls?From=<number-1>,<number-2>,...",
+							"disabled": true
+						},
+						{
+							"key": "Status",
+							"value": "<replace with status(es)>",
+							"description": "[Filter] Overall call status, which could be one of:\n\nqueued - The call is ready and waiting in line before going out\nringing - The call is currently in-flight\nin-progress - The call was answered and is currently in progress\ncompleted - The call was answered and has ended normally\nfailed - The call could not be completed as dialled, most likely because the phone number was non-existent\nbusy - The caller received a busy signal\nno-answer - The call ended without being answered\nExample:\n/Calls?Status=completed\n/Calls?Status=failed,no-answer,busy,canceled",
+							"disabled": true
+						},
+						{
+							"key": "Duration",
+							"value": "<replace with duration>",
+							"description": "[Filter] Call duration in seconds. Supported operators (gte, eq and lte), for more info refer to filter operators section below.\n\nExample:\n/Calls?Duration=gte:10s;lte:45s\n/Calls?Duration=eq:30s",
+							"disabled": true
+						},
+						{
+							"key": "Price",
+							"value": "<replace with price range>",
+							"description": "[Filter] If present, this will be the amount (as per your billing currency) you have been charged for the call. Supported operators (gte, eq and lte), for more info refer to filter operators section below.\n\nExample:\n/Calls?Price=gte:0.10;lte:1.0\n/Calls?Price=eq:0.300030",
+							"disabled": true
+						},
+						{
+							"key": "Direction",
+							"value": "<replace with direction>",
+							"description": "[Filter] inbound\noutbound-dial - Outbound calls from Exotel dashboard\noutbound-api - All other Outbound calls (API, campaign etc.)\nExample:\n/Calls?Direction=inbound\n/Calls?Direction=outbound-dial,inbound",
+							"disabled": true
+						},
+						{
+							"key": "PhoneNumber",
+							"value": "<replace with exophone>",
+							"description": "[Filter] This represents the Virtual Number (ExoPhone) used for the call. One or multiple PhoneNumber(s) can be provided (in E.164 format) which are comma separated. (max limit: 5)\n\nExample:\n/Calls?PhoneNumber=<vn-1>\n/Calls?PhoneNumber=<vn-1>,<vn-2>,...",
+							"disabled": true
+						},
+						{
+							"key": "PageSize",
+							"value": "<replace with page size of results>",
+							"description": "[Filter] This represents number of records visible in one page of the API response. Default: 50, Max: 100",
+							"disabled": true
+						},
+						{
+							"key": "SortBy",
+							"value": "<replace with the field you want to sort the results with>",
+							"description": "[Filter] This indicates in what order the Call records are sorted in the API response. By default records are sorted by DateCreated in descending order. However, you can override the same in following way for ascending order:\n\nExample:\n/Calls?SortBy=DateCreated:asc",
+							"disabled": true
+						},
+						{
+							"key": "Before",
+							"value": "<replace with call ID before which you want the results>",
+							"description": "[Filter] Auto generated unique string returned in the PrevPageUri (under Metadata) to be used as query param when at least one record is returned in that page. The value of this field is a cursor which identifies a call record uniquely.",
+							"disabled": true
+						},
+						{
+							"key": "After",
+							"value": "<replace with call ID after which you want the results]",
+							"description": "[Filter] Auto generated unique string returned in the NextPageUri (under Metadata) to be used as query param when at least one record is present in that page. The value of this field is a cursor which identifies a call record uniquely.",
+							"disabled": true
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Number Metadata",
+			"request": {
+				"auth": {
+					"type": "basic",
+					"basic": [
+						{
+							"key": "password",
+							"value": "{{AuthToken}}",
+							"type": "string"
+						},
+						{
+							"key": "username",
+							"value": "{{AuthKey}}",
+							"type": "string"
+						}
+					]
+				},
+				"method": "GET",
+				"header": [
+					{
+						"key": "Authorization",
+						"value": "{{Authorization}}",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "https://{{SubDomain}}/v1/Accounts/{{AccountSid}}//Numbers/:number",
+					"protocol": "https",
+					"host": [
+						"{{SubDomain}}"
+					],
+					"path": [
+						"v1",
+						"Accounts",
+						"{{AccountSid}}",
+						"",
+						"Numbers",
+						":number"
+					],
+					"variable": [
+						{
+							"key": "number",
+							"value": "",
+							"description": "number whose metadata is to be gotten"
+						}
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}

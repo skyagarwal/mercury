@@ -872,23 +872,34 @@ async def health_check():
         }
     }
 
-@app.get("/api/nerve/audio/{audio_id}")
-async def serve_audio(audio_id: str):
-    """Serve cached audio file to Exotel"""
+@app.api_route("/api/nerve/audio/{audio_id}", methods=["GET", "HEAD"])
+async def serve_audio(request: Request, audio_id: str):
+    """Serve cached audio file to Exotel
+
+    Note: Some clients (including telecom platforms) may issue a HEAD request
+    before GET. We must support HEAD with proper headers.
+    """
     if audio_id not in audio_storage:
         logger.warning(f"Audio not found: {audio_id}")
         return Response(content="Audio not found", status_code=404)
     
     audio_data = audio_storage[audio_id]
-    logger.info(f"🔊 Serving audio: {audio_id} ({len(audio_data)} bytes)")
+    audio_len = len(audio_data)
+    logger.info(f"🔊 Serving audio: method={request.method} id={audio_id} bytes={audio_len}")
+
+    headers = {
+        "Content-Disposition": f'inline; filename="{audio_id}.wav"',
+        "Cache-Control": "public, max-age=3600",
+        "Content-Length": str(audio_len),
+    }
+
+    if request.method == "HEAD":
+        return Response(content=b"", media_type="audio/wav", headers=headers)
     
     return Response(
         content=audio_data,
         media_type="audio/wav",
-        headers={
-            "Content-Disposition": f'inline; filename="{audio_id}.wav"',
-            "Cache-Control": "public, max-age=3600"
-        }
+        headers=headers
     )
 
 @app.get("/info")
@@ -913,6 +924,87 @@ async def service_info():
             "caller_id": EXOTEL_CALLER_ID
         }
     }
+
+
+# ==============================================================================
+# EXOTEL STATUS CALLBACK - Diagnostic webhook
+# ==============================================================================
+
+
+@app.api_route("/api/nerve/status", methods=["POST", "GET", "HEAD"])
+async def exotel_status_callback(request: Request):
+    """Receive Exotel StatusCallback webhooks.
+
+    Purpose:
+    - Prove Exotel can reach our domain (independent of flow/applet execution).
+    - Capture answered/terminal events + recording URLs for debugging.
+
+    Exotel can send payloads as multipart/form-data (default) or application/json.
+    """
+
+    # Some platforms probe with HEAD.
+    if request.method == "HEAD":
+        return Response(status_code=200)
+
+    content_type = (request.headers.get("content-type") or "").lower()
+
+    # Capture raw body for debugging. Starlette caches request bodies, so parsing below is safe.
+    raw_body = b""
+    try:
+        raw_body = await request.body()
+    except Exception:
+        raw_body = b""
+
+    payload: Dict[str, Any] = {}
+    parse_error: Optional[str] = None
+
+    if request.method == "GET":
+        payload = dict(request.query_params)
+    else:
+        if "application/json" in content_type:
+            try:
+                payload = await request.json()
+            except Exception as e:
+                parse_error = f"json_parse_failed: {e}"
+                payload = {}
+        else:
+            try:
+                form = await request.form()
+                # Convert MultiDict to a plain dict (preserve repeated keys as lists)
+                payload = {
+                    key: (form.getlist(key) if len(form.getlist(key)) > 1 else form.get(key))
+                    for key in form.keys()
+                }
+            except Exception as e:
+                parse_error = f"form_parse_failed: {e}"
+                payload = {}
+
+    call_sid = payload.get("CallSid") or payload.get("CallSid[]") or payload.get("call_sid")
+    status = payload.get("Status") or payload.get("status")
+    event_type = payload.get("EventType") or payload.get("event") or payload.get("Event")
+    recording_url = payload.get("RecordingUrl") or payload.get("recording_url")
+
+    logger.info(
+        "📮 Exotel StatusCallback: method=%s CallSid=%s EventType=%s Status=%s RecordingUrl=%s ct=%s parse_error=%s",
+        request.method,
+        call_sid,
+        event_type,
+        status,
+        recording_url,
+        content_type,
+        parse_error,
+    )
+
+    # Log the full payload at debug to avoid noisy logs in prod.
+    try:
+        if payload:
+            logger.debug("📮 Exotel StatusCallback payload keys=%s", sorted(list(payload.keys()))[:80])
+        if raw_body:
+            logger.debug("📮 Exotel StatusCallback raw_body=%s", raw_body[:4000])
+    except Exception:
+        pass
+
+    return JSONResponse({"ok": True})
 
 # ==============================================================================
 # CALL INITIATION ENDPOINTS (Jupiter → Nerve)
@@ -1116,14 +1208,15 @@ async def generate_and_store_audio(text: str, language: str = "hi", use_minio: b
         logger.error(f"Failed to generate audio: {e}")
         return None
 
+
+# When True, ExoML responses will use <Play> with a generated/hosted audio_url.
+# When False (default), ExoML uses Exotel's built-in TTS via <Say> for maximum speed/reliability.
+USE_EXOTEL_PLAY_AUDIO = os.getenv("USE_EXOTEL_PLAY_AUDIO", "false").lower() == "true"
+
 def build_exoml_response(text: str, gather_action: str = None, timeout: int = 10, finish_on_key: str = "#", num_digits: int = None, audio_url: str = None) -> str:
     """Build ExoML response with audio URL (Play) or TTS (Say)"""
-    
-    # TEMPORARY: Skip audio_url due to storage.mangwale.ai 502 error
-    # Force use of Exotel's <Say> TTS
-    use_audio = False  # Change to True when storage is fixed
-    
-    if audio_url and use_audio:
+
+    if audio_url and USE_EXOTEL_PLAY_AUDIO:
         # Use Play with our own audio
         if gather_action:
             gather_attrs = f'action="{gather_action}" timeout="{timeout}" finishOnKey="{finish_on_key}"'
@@ -1170,14 +1263,17 @@ def build_exoml_response(text: str, gather_action: str = None, timeout: int = 10
 # PROGRAMMABLE GATHER ENDPOINT - For Exotel's Programmable Gather Applet
 # ==============================================================================
 
-@app.api_route("/api/nerve/gather", methods=["GET", "HEAD", "POST"])
+@app.api_route("/api/nerve/gather", methods=["GET", "POST", "HEAD"])
 async def programmable_gather_handler(
+    request: Request,
     CallSid: str = Query(None),
     CallFrom: str = Query(None),
     CallTo: str = Query(None),
     digits: str = Query(None),
+    Digits: str = Query(None),  # Some Exotel configs send DTMF as 'Digits'
     Direction: str = Query(None),
     CustomField: str = Query(None),
+    ExotelCallStatus: str = Query(None, alias="CallStatus"),
     flow_id: str = Query(None),
     CurrentTime: str = Query(None)
 ):
@@ -1191,7 +1287,39 @@ async def programmable_gather_handler(
     1. First call (no digits) → Return greeting with DTMF options
     2. DTMF received → Process and return next prompt
     """
-    logger.info(f"📥 Programmable Gather: CallSid={CallSid}, digits={digits}, CustomField={CustomField}")
+
+    # Some platforms (and sometimes Exotel tooling) probe webhook URLs with HEAD.
+    # Respond fast with 200 and no body.
+    if request.method == "HEAD":
+        return Response(status_code=200)
+
+    # Exotel can send callback params in querystring OR as POST form fields.
+    # FastAPI's Query() won't capture form fields, so we merge them here.
+    form_data = None
+    if request.method == "POST":
+        try:
+            form_data = await request.form()
+        except Exception:
+            form_data = None
+
+    if form_data:
+        CallSid = CallSid or form_data.get("CallSid")
+        CallFrom = CallFrom or form_data.get("CallFrom")
+        CallTo = CallTo or form_data.get("CallTo")
+        Direction = Direction or form_data.get("Direction")
+        CustomField = CustomField or form_data.get("CustomField")
+        ExotelCallStatus = ExotelCallStatus or form_data.get("CallStatus") or form_data.get("ExotelCallStatus")
+        flow_id = flow_id or form_data.get("flow_id") or form_data.get("FlowId")
+        CurrentTime = CurrentTime or form_data.get("CurrentTime")
+
+        Digits = Digits or form_data.get("Digits")
+        digits = digits or form_data.get("digits")
+
+    logger.info(
+        f"📥 Programmable Gather: method={request.method}, CallSid={CallSid}, flow_id={flow_id}, Direction={Direction}, "
+        f"CallFrom={CallFrom}, CallTo={CallTo}, digits={digits}, Digits={Digits}, CustomField={CustomField}, "
+        f"CallStatus={ExotelCallStatus}, Accept={request.headers.get('accept')}, UA={request.headers.get('user-agent')}"
+    )
     
     # Parse custom field
     call_context = {}
@@ -1240,11 +1368,12 @@ async def programmable_gather_handler(
         
         logger.info(f"📋 Created call_state for Programmable Gather: {CallSid}")
     
-    # Process DTMF if provided
-    dtmf = digits.replace('"', '').strip() if digits else None
+    # Process DTMF if provided (handle both 'digits' and 'Digits')
+    raw_digits = digits if digits is not None else Digits
+    dtmf = raw_digits.replace('"', '').strip() if raw_digits else None
     
     if dtmf:
-        logger.info(f"📱 DTMF received: {dtmf} | State: {call_state.current_state}")
+        logger.info(f"📱 DTMF received: CallSid={CallSid} dtmf={dtmf} state={call_state.current_state}")
         
         if call_state.current_state == "greeting":
             if dtmf == "1":
@@ -1256,16 +1385,29 @@ async def programmable_gather_handler(
                 # Generate prep time prompt
                 lang = call_state.language
                 phrases = HINDI_PHRASES if lang == "hi" else ENGLISH_PHRASES
-                
-                prompt_text = f"{phrases['thank_you']}! {phrases['prep_time_prompt']}: 15 {phrases['minutes_in']} - 1, 30 {phrases['minutes_in']} - 2, 45 {phrases['minutes_in']} - 3 {phrases['press']}।"
-                
+
+                # Exotel TTS can sound garbled for Devanagari depending on voice configuration.
+                # For Programmable Gather, prefer Hinglish (Latin script) when language=hi.
+                if lang == "hi":
+                    prompt_text = (
+                        "Shukriya. Khana kitne minute me taiyar hoga? "
+                        "15 ke liye 1 dabaiye, 30 ke liye 2, 45 ke liye 3. Abhi dabaiye."
+                    )
+                else:
+                    prompt_text = (
+                        f"{phrases['thank_you']}! {phrases['prep_time_prompt']}: "
+                        f"15 {phrases['minutes_in']} - 1, 30 {phrases['minutes_in']} - 2, 45 {phrases['minutes_in']} - 3 {phrases['press']}."
+                    )
+
+                repeat_prefix = "Koi input nahi mila." if lang == "hi" else phrases["no_input"]
+                logger.info(f"🗣️ Programmable Gather response: CallSid={CallSid} next_state={call_state.current_state} text={prompt_text[:140]}")
                 return JSONResponse({
                     "gather_prompt": {"text": prompt_text},
                     "max_input_digits": 1,
                     "finish_on_key": "",
-                    "input_timeout": 15,
+                    "input_timeout": 30,
                     "repeat_menu": 2,
-                    "repeat_gather_prompt": {"text": f"{phrases['no_input']}। {prompt_text}"}
+                    "repeat_gather_prompt": {"text": f"{repeat_prefix} {prompt_text}"}
                 })
                 
             elif dtmf == "0":
@@ -1276,12 +1418,17 @@ async def programmable_gather_handler(
                 
                 lang = call_state.language
                 phrases = HINDI_PHRASES if lang == "hi" else ENGLISH_PHRASES
-                goodbye_text = f"{phrases['rejection_ack']}। {phrases['thank_you']}! {phrases['good_day']}।"
+
+                if lang == "hi":
+                    goodbye_text = "Theek hai. Hum ye order kisi aur ko denge. Dhanyavaad."
+                else:
+                    goodbye_text = f"{phrases['rejection_ack']}. {phrases['thank_you']}! {phrases['good_day']}."
+
+                logger.info(f"🗣️ Programmable Gather response: CallSid={CallSid} next_state={call_state.current_state} text={goodbye_text[:140]}")
                 
                 # Report result
                 await report_call_result(call_state, CurrentTime)
                 
-                # Return final message (no gather - call will end)
                 return JSONResponse({
                     "gather_prompt": {"text": goodbye_text},
                     "max_input_digits": 0,  # No gather
@@ -1304,7 +1451,12 @@ async def programmable_gather_handler(
             # Generate goodbye
             lang = call_state.language
             phrases = HINDI_PHRASES if lang == "hi" else ENGLISH_PHRASES
-            goodbye_text = f"{phrases['thank_you']}! {phrases['rider_arrive']} {prep_time} {phrases['minutes_in']}। {phrases['good_day']}!"
+
+            # For Programmable Gather, keep Hindi responses in Hinglish (Latin script) for clearer Exotel TTS.
+            if lang == "hi":
+                goodbye_text = f"Shukriya. Rider {prep_time} minute me aayega. Namaste."
+            else:
+                goodbye_text = f"{phrases['thank_you']}! {phrases['rider_arrive']} {prep_time} {phrases['minutes_in']}. {phrases['good_day']}!"
             
             return JSONResponse({
                 "gather_prompt": {"text": goodbye_text},
@@ -1312,40 +1464,97 @@ async def programmable_gather_handler(
                 "input_timeout": 1
             })
     
-    # No DTMF - return initial greeting
+    # No DTMF.
+    # Some Exotel configurations (e.g., chaining Gather applets with “redirect to below applet”)
+    # can trigger a fresh request to our URL *without* carrying forward the previous digit.
+    # In that case, rely on server-side state to continue the conversation.
+    if call_state.current_state == "prep_time":
+        lang = call_state.language
+        phrases = HINDI_PHRASES if lang == "hi" else ENGLISH_PHRASES
+
+        if lang == "hi":
+            prompt_text = (
+                "Shukriya. Khana kitne minute me taiyar hoga? "
+                "15 ke liye 1 dabaiye, 30 ke liye 2, 45 ke liye 3. Abhi dabaiye."
+            )
+            repeat_prefix = "Koi input nahi mila."
+        else:
+            prompt_text = (
+                f"{phrases['thank_you']}! {phrases['prep_time_prompt']}: "
+                f"15 {phrases['minutes_in']} - 1, 30 {phrases['minutes_in']} - 2, 45 {phrases['minutes_in']} - 3 {phrases['press']}."
+            )
+            repeat_prefix = phrases["no_input"]
+
+        logger.info(
+            f"🗣️ Programmable Gather no-dtmf continuation: CallSid={CallSid} state=prep_time text={prompt_text[:140]}"
+        )
+        return JSONResponse({
+            "gather_prompt": {"text": prompt_text},
+            "max_input_digits": 1,
+            "finish_on_key": "",
+            "input_timeout": 30,
+            "repeat_menu": 2,
+            "repeat_gather_prompt": {"text": f"{repeat_prefix} {prompt_text}"}
+        })
+
+    if call_state.current_state == "completed":
+        lang = call_state.language
+        phrases = HINDI_PHRASES if lang == "hi" else ENGLISH_PHRASES
+
+        # Try to return the most relevant closing message.
+        if call_state.status == CallStatus.PREP_TIME_SET and call_state.prep_time_minutes:
+            prep_time = int(call_state.prep_time_minutes)
+            if lang == "hi":
+                goodbye_text = f"Shukriya. Rider {prep_time} minute me aayega. Namaste."
+            else:
+                goodbye_text = f"{phrases['thank_you']}! {phrases['rider_arrive']} {prep_time} {phrases['minutes_in']}. {phrases['good_day']}!"
+        elif call_state.status == CallStatus.REJECTED:
+            goodbye_text = "Theek hai. Hum ye order kisi aur ko denge. Dhanyavaad." if lang == "hi" else f"{phrases['rejection_ack']}. {phrases['thank_you']}! {phrases['good_day']}!"
+        else:
+            goodbye_text = "Dhanyavaad." if lang == "hi" else f"{phrases['thank_you']}!"
+
+        logger.info(
+            f"🗣️ Programmable Gather no-dtmf continuation: CallSid={CallSid} state=completed text={goodbye_text[:140]}"
+        )
+        return JSONResponse({
+            "gather_prompt": {"text": goodbye_text},
+            "max_input_digits": 0,
+            "input_timeout": 1
+        })
+
+    # Default: initial greeting
     logger.info(f"📞 Programmable Gather - Initial greeting for {CallSid}")
-    
+
     greeting_text = generate_vendor_greeting_script(call_state)
-    
-    # Prefer pre-generated audio URL from CustomField (our ChatterBox TTS)
-    # Exotel's TTS doesn't handle Hindi well
-    audio_url = call_context.get("greeting_audio_url")
-    
-    if audio_url:
-        logger.info(f"🎵 Using pre-generated audio: {audio_url}")
-        return JSONResponse({
-            "gather_prompt": {"audio_url": audio_url},
-            "max_input_digits": 1,
-            "finish_on_key": "#",
-            "input_timeout": 15,
-            "repeat_menu": 2,
-            "repeat_gather_prompt": {"audio_url": audio_url}
-        })
-    else:
-        # Fallback to Exotel's TTS
-        logger.info(f"📝 Using Exotel TTS (no audio_url)")
-        return JSONResponse({
-            "gather_prompt": {"text": greeting_text},
-            "max_input_digits": 1,
-            "finish_on_key": "#",
-            "input_timeout": 15,
-            "repeat_menu": 2,
-            "repeat_gather_prompt": {"text": f"कोई इनपुट नहीं मिला। {greeting_text}"}
-        })
+
+    # For Programmable Gather, prefer a shorter Hinglish prompt for Hindi to avoid garbled TTS.
+    if call_state.language == "hi":
+        vendor_part = f" {call_state.vendor_name}." if getattr(call_state, "vendor_name", "") else ""
+        greeting_text = (
+            f"Namaste{vendor_part} Ye Mangwale se call hai. "
+            f"Aapke liye naya order aaya hai. Order number {call_state.order_id}. "
+            "Accept ke liye 1 dabaiye. Cancel ke liye 0 dabaiye. Abhi dabaiye."
+        )
+
+    logger.info(
+        f"🗣️ Programmable Gather prompt (text-only): CallSid={CallSid} state={call_state.current_state} text={greeting_text[:140]}"
+    )
+
+    # For Mode A, respond quickly with text-only so Exotel can do built-in TTS.
+    no_input_prefix = "No input received" if call_state.language != "hi" else "Koi input nahi mila"
+    return JSONResponse({
+        "gather_prompt": {"text": greeting_text},
+        "max_input_digits": 1,
+        "finish_on_key": "",
+        "input_timeout": 30,
+        "repeat_menu": 2,
+        "repeat_gather_prompt": {"text": f"{no_input_prefix}. {greeting_text}"}
+    })
 
 
-@app.api_route("/api/nerve/callback", methods=["GET", "HEAD"])
+@app.api_route("/api/nerve/callback", methods=["GET"])
 async def exotel_passthru_callback(
+    request: Request,
     CallSid: str = Query(None),
     CallFrom: str = Query(None),
     CallTo: str = Query(None),
@@ -1367,7 +1576,10 @@ async def exotel_passthru_callback(
     # Handle both 'digits' and 'Digits' params
     dtmf = digits or Digits
     
-    logger.info(f"📥 Exotel callback: CallSid={CallSid}, digits={dtmf}, CustomField={CustomField[:80] if CustomField else 'None'}...")
+    logger.info(
+        f"📥 Exotel callback: method={request.method}, CallSid={CallSid}, digits={dtmf}, "
+        f"CustomField={CustomField[:80] if CustomField else 'None'}..."
+    )
     
     # Validate CallSid
     if not CallSid or CallSid == "None":
@@ -1437,10 +1649,10 @@ async def exotel_passthru_callback(
         # Generate greeting script
         greeting = generate_vendor_greeting_script(call_state)
         callback_url = f"{EXOTEL_CALLBACK_URL}/api/nerve/callback?CallSid={CallSid}"
-        
-        # Prefer pre-generated audio URL from CustomField for instant response
-        audio_url = call_context.get("greeting_audio_url")
-        if not audio_url:
+
+        # Only generate/use audio when explicitly enabled; otherwise respond immediately with <Say>.
+        audio_url = call_context.get("greeting_audio_url") if USE_EXOTEL_PLAY_AUDIO else None
+        if USE_EXOTEL_PLAY_AUDIO and not audio_url:
             audio_url = await generate_and_store_audio(greeting, call_state.language)
         
         return Response(
@@ -1473,7 +1685,9 @@ async def exotel_passthru_callback(
                 logger.info(f"📞 IVR passthru -> Playing Hindi greeting for {CallSid}")
                 
                 greeting = generate_vendor_greeting_script(call_state)
-                audio_url = call_context.get("greeting_audio_url") or await generate_and_store_audio(greeting, call_state.language)
+                audio_url = call_context.get("greeting_audio_url") if USE_EXOTEL_PLAY_AUDIO else None
+                if USE_EXOTEL_PLAY_AUDIO and not audio_url:
+                    audio_url = await generate_and_store_audio(greeting, call_state.language)
                 return Response(
                     content=build_exoml_response(greeting, gather_action=callback_url, timeout=15, num_digits=1, audio_url=audio_url),
                     media_type="application/xml"
@@ -1483,7 +1697,9 @@ async def exotel_passthru_callback(
                 logger.info(f"📞 IVR other key {clean_digits} -> Playing greeting anyway")
                 call_state.current_state = "greeting"
                 greeting = generate_vendor_greeting_script(call_state)
-                audio_url = call_context.get("greeting_audio_url") or await generate_and_store_audio(greeting, call_state.language)
+                audio_url = call_context.get("greeting_audio_url") if USE_EXOTEL_PLAY_AUDIO else None
+                if USE_EXOTEL_PLAY_AUDIO and not audio_url:
+                    audio_url = await generate_and_store_audio(greeting, call_state.language)
                 return Response(
                     content=build_exoml_response(greeting, gather_action=callback_url, timeout=15, num_digits=1, audio_url=audio_url),
                     media_type="application/xml"
@@ -1497,7 +1713,9 @@ async def exotel_passthru_callback(
                 logger.info(f"✅ Order {call_state.order_id} ACCEPTED")
                 
                 prep_prompt = generate_accepted_script(call_state)
-                audio_url = call_context.get("accepted_audio_url") or await generate_and_store_audio(prep_prompt, call_state.language)
+                audio_url = call_context.get("accepted_audio_url") if USE_EXOTEL_PLAY_AUDIO else None
+                if USE_EXOTEL_PLAY_AUDIO and not audio_url:
+                    audio_url = await generate_and_store_audio(prep_prompt, call_state.language)
                 exoml = build_exoml_response(prep_prompt, gather_action=callback_url, timeout=15, finish_on_key="#", audio_url=audio_url)
                 logger.info(f"📤 Returning ExoML for prep_time: {exoml[:200]}...")
                 return Response(
@@ -1517,7 +1735,9 @@ async def exotel_passthru_callback(
                 
                 # Report result and say goodbye
                 await report_call_result(call_state, CurrentTime)
-                audio_url = await generate_and_store_audio(goodbye, call_state.language)
+                audio_url = None
+                if USE_EXOTEL_PLAY_AUDIO:
+                    audio_url = await generate_and_store_audio(goodbye, call_state.language)
                 
                 return Response(
                     content=build_exoml_response(goodbye, audio_url=audio_url),
@@ -1549,7 +1769,9 @@ async def exotel_passthru_callback(
             await report_call_result(call_state, CurrentTime)
             
             goodbye = generate_prep_time_goodbye(call_state, prep_time)
-            audio_url = await generate_and_store_audio(goodbye, call_state.language)
+            audio_url = None
+            if USE_EXOTEL_PLAY_AUDIO:
+                audio_url = await generate_and_store_audio(goodbye, call_state.language)
             return Response(
                 content=build_exoml_response(goodbye, audio_url=audio_url),  # No gather - just say and hang up
                 media_type="application/xml"
@@ -1572,7 +1794,9 @@ async def exotel_passthru_callback(
             lang = call_state.language
             phrases = HINDI_PHRASES if lang == "hi" else ENGLISH_PHRASES
             goodbye = f"{phrases['rejection_ack']}। {phrases['thank_you']}!"
-            audio_url = await generate_and_store_audio(goodbye, call_state.language)
+            audio_url = None
+            if USE_EXOTEL_PLAY_AUDIO:
+                audio_url = await generate_and_store_audio(goodbye, call_state.language)
             return Response(
                 content=build_exoml_response(goodbye, audio_url=audio_url),
                 media_type="application/xml"
@@ -1583,7 +1807,9 @@ async def exotel_passthru_callback(
     greeting = generate_vendor_greeting_script(call_state)
     callback_url = f"{EXOTEL_CALLBACK_URL}/api/nerve/callback?CallSid={CallSid}"
     # Prefer pre-generated audio URL from CustomField if present
-    audio_url = call_context.get("greeting_audio_url") or await generate_and_store_audio(greeting, call_state.language)
+    audio_url = call_context.get("greeting_audio_url") if USE_EXOTEL_PLAY_AUDIO else None
+    if USE_EXOTEL_PLAY_AUDIO and not audio_url:
+        audio_url = await generate_and_store_audio(greeting, call_state.language)
     return Response(
         content=build_exoml_response(greeting, gather_action=callback_url, timeout=15, num_digits=1, audio_url=audio_url),
         media_type="application/xml"
@@ -1651,9 +1877,10 @@ async def ai_powered_callback(
         response_text = ai_response.get("text", "")
         language = ai_response.get("language", "hi-IN")
         should_continue = ai_response.get("continue", True)
-        
-        # Generate TTS audio
-        audio_url = await generate_and_store_audio(response_text, language.split("-")[0])
+
+        audio_url = None
+        if USE_EXOTEL_PLAY_AUDIO:
+            audio_url = await generate_and_store_audio(response_text, language.split("-")[0])
         
         if should_continue:
             return Response(
@@ -1674,7 +1901,9 @@ async def ai_powered_callback(
     else:
         # Fallback to static response
         fallback = "कृपया एक दबाएं ऑर्डर स्वीकार करने के लिए, शून्य दबाएं रद्द करने के लिए।"
-        audio_url = await generate_and_store_audio(fallback, "hi")
+        audio_url = None
+        if USE_EXOTEL_PLAY_AUDIO:
+            audio_url = await generate_and_store_audio(fallback, "hi")
         return Response(
             content=build_exoml_response(fallback, gather_action=callback_url, timeout=15, num_digits=1, audio_url=audio_url),
             media_type="application/xml"

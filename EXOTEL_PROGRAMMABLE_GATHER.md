@@ -1,18 +1,33 @@
-# Exotel Programmable Gather Integration
+# Exotel Gather Applet (Dynamic URL) Integration
+
+## Status (Dec 2025)
+
+We are using Exotel **Gather Applet (Dynamic URL + JSON)** with Exotel Flow/App **ID: 1149178**.
+
+Key design decision:
+- For reliability/latency, the webhook returns **text-only** (`gather_prompt.text`) so Exotel speaks it using **built-in Exotel TTS**.
+- We do **not** generate WAV inside the webhook because server-side TTS generation can take long enough that the call ends before audio is ready.
+- For Hindi, we use **Hinglish (Latin script)** in the JSON response because Exotel TTS can sound unclear/garbled with Devanagari depending on dashboard voice settings.
+
+Backend handler:
+- `escotel-stack/exotel-service/nerve_system.py` → endpoint `/api/nerve/gather`
 
 ## Overview
 
-This document describes how to set up **Programmable Gather** applet in Exotel to enable dynamic Hindi TTS for vendor order confirmation calls.
+This document describes how to set up Exotel’s **Gather Applet** (the UI in your screenshot) using a **Primary URL** that returns JSON (`gather_prompt`, `max_input_digits`, etc.).
 
-## Why Programmable Gather?
+## Why Gather (Dynamic URL)?
 
 The old IVR App (ID: 1077337) had **static English audio** baked in. The passthru URL wasn't being called correctly.
 
-**Programmable Gather** solves this by:
-1. Calling our URL on every interaction
-2. We return JSON with the text to speak
-3. Exotel's built-in TTS speaks our text in Hindi
-4. We control the entire conversation flow dynamically
+The Gather Applet solves this by:
+1. Calling our URL to fetch gather parameters (prompt + DTMF settings)
+2. Exotel plays the prompt using built-in TTS (when we send `gather_prompt.text`)
+3. Exotel gathers keypad digits and then moves to the **next applet** as per the flow builder
+
+Important nuance (based on Exotel’s Gather Applet behavior):
+- You **must** configure flow transitions (“below applet”) regardless of using a Primary URL.
+- For multi-step IVR, Exotel will not keep calling the *same* Gather widget forever; you need to **chain multiple Gather widgets**.
 
 ## Endpoint: `/api/nerve/gather`
 
@@ -20,6 +35,13 @@ The old IVR App (ID: 1077337) had **static English audio** baked in. The passthr
 ```
 https://exotel.mangwale.ai/api/nerve/gather
 ```
+
+### Critical: Primary URL must be HTTPS (no redirects)
+
+In Exotel’s Gather Applet, set **Primary URL** to the **HTTPS** URL above.
+
+Do **not** set Primary URL to `http://exotel.mangwale.ai/api/nerve/gather`.
+That endpoint returns an HTTP `301` redirect to HTTPS, and Exotel may not follow redirects reliably for webhook calls (which can look like “no webhook hits”).
 
 ### Request Parameters (from Exotel)
 
@@ -78,37 +100,59 @@ OR
    → max_input_digits=0 (call ends)
 ```
 
-## Exotel Dashboard Setup
+## Exotel Dashboard Setup (matches your screenshot)
 
-### Step 1: Create New IVR App
+### Step 1: Open Flow/App 1149178
 
 1. Login to **Exotel Dashboard**
-2. Go to **IVR** → **Create New App**
-3. Name it: `Mangwale-Programmable-Gather`
+2. Open your flow/app **1149178** in the flow builder
 
-### Step 2: Add Programmable Gather Applet
+### Step 2: Build the correct applet chain
 
-1. Drag **Programmable Gather** applet onto canvas
-2. Configure:
-   - **URL**: `https://exotel.mangwale.ai/api/nerve/gather`
-   - **HTTP Method**: GET
-   - **Voice (for TTS)**: `hi-IN` or `hi-IN-Standard-A`
-   - **Max Retries**: 2
-   - **No Input Action**: Re-fetch URL
-   - **Invalid Input Action**: Re-fetch URL
+Use this exact canvas (this is the key missing piece):
 
-### Step 3: Add Start Applet
+`Call Start` → `Gather (Step 1)` → `Gather (Step 2)` → `Hangup`
 
-1. Connect **Start** to **Programmable Gather**
-2. No other configuration needed
+Why: after the caller enters digits in Gather Step 1, Exotel will **redirect to the below applet**. The below applet must be another Gather (Step 2), so Exotel calls your Primary URL again and includes the previous digit in `digits`.
 
-### Step 4: Get App ID
+**Gather (Step 1) config**
+- Choose: **Configure parameters dynamically by providing a URL**
+- Primary URL: `https://exotel.mangwale.ai/api/nerve/gather`
+- Fallback URL: optional (can be blank)
+- “When the caller entered one or more input digits” → **Redirect to below applet** → select **Gather (Step 2)**
 
-1. After saving, note the **App ID** (e.g., `1234567`)
-2. Update `nerve_system.py`:
-   ```python
-   IVR_APP_ID = ivr_app_id or "NEW_APP_ID"  # Replace with actual ID
-   ```
+**Gather (Step 2) config**
+- Choose: **Configure parameters dynamically by providing a URL**
+- Primary URL: `https://exotel.mangwale.ai/api/nerve/gather`
+- Fallback URL: optional (can be blank)
+- “When the caller entered one or more input digits” → **Redirect to below applet** → select **Hangup**
+
+### Critical: “When the caller entered digits … Redirect to below applet”
+
+This is the most common cause of:
+- “I pressed 1 and call disconnected”
+- “I never got the prep-time question”
+
+In your screenshot, Exotel’s Gather Applet explicitly says it will **redirect to the below applet** after digits.
+
+That is correct — but it only works if the below applet is another **Gather** that also has the Primary URL set.
+
+Expected behavior becomes:
+1) Exotel calls our URL (Gather Step 1) with no digits → we return greeting JSON
+2) User presses `1` or `0`
+3) Exotel moves to Gather Step 2 and calls our URL again, now including `digits="1"` or `digits="0"`
+4) We return the next prompt JSON (prep-time or goodbye)
+5) If still gathering, user presses digit again → then Exotel redirects to Hangup
+
+### Step 3: Save
+
+Click **SAVE** in the top-right.
+
+### Step 4: Confirm the outbound call points to 1149178
+
+Our outbound API call should point to:
+
+`Url=http://my.exotel.com/<account_sid>/exoml/start_voice/1149178`
 
 ### Step 5: Test
 
@@ -142,19 +186,22 @@ Step 1: Greeting → "नमस्ते Reject Vendor, यह मंगवा�
 Step 2: Press 0 → "हम किसी और को यह ऑर्डर देंगे। धन्यवाद! शुभ दिन।"
 ```
 
-## Alternative: Using Passthru
+## Alternative (if you want digit-specific branching)
 
-If Programmable Gather isn't available, use **Passthru** applet:
+If you need different next steps for different digits *within Exotel’s flow builder* (instead of server-side state), use an **IVR Menu** applet.
 
-1. Create flow: Start → Passthru
-2. Passthru URL: `https://exotel.mangwale.ai/api/nerve/callback`
-3. This returns ExoML XML instead of JSON
+For our current approach (server-side state machine), chaining Gather Step 1 → Gather Step 2 → Hangup is the simplest.
 
 ## Debugging
 
 ### Check logs:
 ```bash
 tail -f /tmp/nerve-system.log | grep -E "gather|DTMF"
+```
+
+In production on this server, logs are typically in:
+```bash
+tail -f /home/ubuntu/mangwale-voice/logs/nerve-system.error.log | grep -E "Programmable Gather|DTMF|CallSid"
 ```
 
 ### Test endpoint directly:
@@ -165,6 +212,55 @@ curl "http://localhost:7100/api/nerve/gather?CallSid=test&CustomField=%7B%22orde
 # Accept (digit=1)
 curl "http://localhost:7100/api/nerve/gather?CallSid=test&digits=1"
 ```
+
+## End-to-End Test Checklist (Recommended)
+
+Goal: validate the complete flow is stable before any audio optimizations.
+
+1) Place a call via Exotel `Calls/connect` to App `1149178`.
+2) Answer the call.
+3) Listen for greeting: “Accept ke liye 1… Cancel ke liye 0…”.
+4) Press `1`.
+5) You should hear prep-time prompt: “Khana kitne minute… 15=1, 30=2, 45=3…”.
+6) Press `2`.
+7) You should hear goodbye: “Rider 30 minute me aayega…”.
+
+If step (4) works in logs but you do not hear step (5): this is almost always an Exotel IVR applet setting issue (see “After Digits Entered”).
+
+## Troubleshooting Guide
+
+### Symptom: Greeting plays, but call disconnects after pressing 1
+
+What it means:
+- Our server *did* receive `digits=1` and returned the prep-time prompt, but Exotel did not play it.
+
+What to check in Exotel:
+- Gather (Step 1) → “When the caller entered one or more input digits” must **Redirect to below applet**.
+- The “below applet” must be **Gather (Step 2)** (not Hangup), and Gather (Step 2) must also have the **HTTPS Primary URL** set.
+- Ensure you clicked **SAVE** in the top-right after wiring the chain.
+
+### Symptom: No digits reach the backend
+
+What to check:
+- Exotel applet is actually **Gather (Dynamic URL / Programmable Gather)** (not classic Gather/Passthru).
+- Primary URL points to `https://exotel.mangwale.ai/api/nerve/gather` (HTTPS, no redirects).
+- Increase `input_timeout` if users take longer to press keys.
+
+## Optional Next Step (Option B): Pre-generate Audio Before Dialing
+
+If you want higher-quality, consistent audio (especially for Hindi), we can do this without slowing the webhook:
+
+Approach:
+1) Before calling Exotel `Calls/connect`, generate greeting audio using our TTS service.
+2) Upload it (MinIO or our audio endpoint).
+3) Pass the URL in `CustomField` (example key: `greeting_audio_url`).
+4) In `/api/nerve/gather`, if `greeting_audio_url` exists and digits are empty, respond with:
+  - `gather_prompt.audio_url` (instead of `gather_prompt.text`).
+
+This keeps the webhook fast while improving audio quality.
+
+Note:
+- We previously observed Exotel may probe audio URLs with `HEAD` and may be sensitive to latency/headers; if we go this route, we must ensure the audio URL is immediately available and returns correct `Content-Type`/`Content-Length`.
 
 ## Notes
 

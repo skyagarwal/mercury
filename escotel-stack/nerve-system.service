@@ -9,7 +9,7 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/mangwale-voice/escotel-stack/exotel-service
 Environment=PATH=/home/ubuntu/mangwale-voice/escotel-stack/exotel-service/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
-Environment=DEBUG_MODE=false
+Environment=DEBUG_MODE=true
 Environment=ASR_URL=http://localhost:7001
 Environment=TTS_URL=http://localhost:7002
 Environment=JUPITER_URL=http://192.168.0.156:3200
